@@ -1,0 +1,2573 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CaLiGRAPH v0.6.7</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&display=swap');
+
+:root {
+  --bg:      #080b0f;
+  --bg2:     #0d1117;
+  --bg3:     #131c26;
+  --panel:   #162030;
+  --panel2:  #1c2a3a;
+  --border:  #1e3248;
+  --border2: #2a4560;
+  --accent:  #00c8ff;
+  --green:   #00ff88;
+  --orange:  #ff8c00;
+  --yellow:  #ffd200;
+  --red:     #ff3355;
+  --purple:  #b060ff;
+  --text:    #cce0f0;
+  --text2:   #5a8aaa;
+  --text3:   #2a4860;
+  --mono:    'JetBrains Mono', monospace;
+  --display: 'Rajdhani', sans-serif;
+  --title:   'Orbitron', sans-serif;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; overflow:hidden; }
+body { background:var(--bg); color:var(--text); font-family:var(--mono); font-size:13px; }
+
+body::after {
+  content:''; position:fixed; inset:0; pointer-events:none; z-index:9999;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.025) 2px, rgba(0,0,0,0.025) 4px);
+}
+
+/* ─── HEADER ─── */
+.app-header {
+  display:flex; align-items:center;
+  background: linear-gradient(90deg, #08121c 0%, #0d1a28 100%);
+  border-bottom: 1px solid var(--border2);
+  height: 52px; flex-shrink:0;
+  position:relative; z-index:50;
+}
+.app-logo {
+  font-family:var(--title); font-size:15px; font-weight:900;
+  letter-spacing:3px; padding:0 22px; color:var(--accent); white-space:nowrap;
+  border-right:1px solid var(--border);
+  display:flex; flex-direction:column; justify-content:center; line-height:1.1;
+  width:270px; min-width:270px; box-sizing:border-box;
+}
+.logo-name { white-space:nowrap; line-height:1; }
+.logo-ca { color:var(--accent); }
+.logo-li { color:var(--purple); }
+.logo-graph { color:var(--green); }
+.app-version { font-size:9px; font-family:var(--mono); color:var(--text3); letter-spacing:2px; margin-top:1px; font-weight:400; }
+
+.mode-tabs { display:flex; height:100%; }
+.mode-tab {
+  display:flex; align-items:center; gap:9px; padding:0 24px; cursor:pointer;
+  font-family:var(--display); font-size:13px; font-weight:600; letter-spacing:1.5px; text-transform:uppercase;
+  color:var(--text3); border-bottom:3px solid transparent; transition:all 0.2s;
+  border-right:1px solid var(--border);
+}
+.mode-tab:hover { color:var(--text2); background:rgba(255,255,255,0.02); }
+.mode-tab.active-monitor { color:var(--accent); border-bottom-color:var(--accent); background:rgba(0,200,255,0.05); }
+.mode-tab.active-sim     { color:var(--purple); border-bottom-color:var(--purple); background:rgba(176,96,255,0.05); }
+.mode-tab.active-analyze { color:var(--green);  border-bottom-color:var(--green);  background:rgba(0,255,136,0.05); }
+
+.tab-badge {
+  font-size:9px; padding:2px 6px; border-radius:10px; font-family:var(--mono); font-weight:700;
+}
+.badge-mon { background:rgba(0,200,255,0.12); color:var(--accent); border:1px solid rgba(0,200,255,0.3); }
+.badge-sim { background:rgba(176,96,255,0.12); color:var(--purple); border:1px solid rgba(176,96,255,0.3); }
+.badge-analyze { background:rgba(0,255,136,0.12); color:var(--green); border:1px solid rgba(0,255,136,0.3); }
+
+.header-right {
+  margin-left:auto; display:flex; align-items:center; gap:14px; padding-right:18px;
+}
+.idb-stat { font-size:10px; color:var(--text3); display:flex; align-items:center; gap:5px; }
+.idb-stat .val { color:var(--text2); }
+.conn-pill {
+  display:flex; align-items:center; gap:6px; padding:4px 12px;
+  background:var(--panel); border:1px solid var(--border2); border-radius:20px; font-size:11px;
+}
+.dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.dot.live    { background:var(--green); box-shadow:0 0 8px var(--green); animation:blink 2s infinite; }
+.dot.file    { background:var(--orange); box-shadow:0 0 6px var(--orange); }
+.dot.paused  { background:var(--yellow); }
+.dot.off     { background:var(--text3); }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* ─── LAYOUT ─── */
+.app-body { display:flex; flex-direction:column; height:calc(100vh - 52px); }
+.page { display:none; flex:1; flex-direction:column; overflow:hidden; }
+#page-analyze { overflow:hidden; }
+.page.active { display:flex; }
+
+/* ════════════════════════════════════════════
+   MONITOR PAGE
+════════════════════════════════════════════ */
+.monitor-layout { display:flex; flex:1; overflow:hidden; }
+
+/* ─── LEFT SIDEBAR ─── */
+.mon-sidebar {
+  width:270px; min-width:270px; background:var(--bg2);
+  border-right:1px solid var(--border); display:flex; flex-direction:column;
+  overflow-y:auto; overflow-x:hidden; box-sizing:border-box;
+}
+.sb-section { padding:14px; padding-right:16px; border-bottom:1px solid var(--border); box-sizing:border-box; }
+.sb-title {
+  font-family:var(--display); font-size:10px; letter-spacing:3px; text-transform:uppercase;
+  color:var(--text3); margin-bottom:11px; display:flex; align-items:center; justify-content:space-between;
+}
+.sb-title-action { color:var(--accent); cursor:pointer; font-size:9px; letter-spacing:1px; }
+
+/* Source panel */
+.source-tabs { display:flex; gap:4px; margin-bottom:10px; }
+.src-tab {
+  flex:1; padding:6px; text-align:center; border-radius:4px; cursor:pointer;
+  font-family:var(--display); font-size:11px; font-weight:600; letter-spacing:1px;
+  border:1px solid var(--border2); background:var(--panel); color:var(--text3); transition:all 0.15s;
+}
+.src-tab.active { background:rgba(0,200,255,0.12); border-color:var(--accent); color:var(--accent); }
+.src-tab.active.file-tab { background:rgba(255,140,0,0.12); border-color:var(--orange); color:var(--orange); }
+
+.ws-row { display:flex; gap:6px; margin-bottom:6px; min-width:0; }
+.ws-input {
+  flex:1; min-width:0; background:var(--bg); border:1px solid var(--border2); color:var(--accent);
+  padding:6px 9px; border-radius:4px; font-family:var(--mono); font-size:11px; outline:none;
+  transition: border-color 0.2s;
+}
+.ws-input:focus { border-color:var(--accent); }
+.ws-input.file-mode { color:var(--orange); }
+.ws-input.file-mode:focus { border-color:var(--orange); }
+
+.btn { 
+  padding:6px 12px; border-radius:4px; border:1px solid var(--border2);
+  background:var(--panel); color:var(--text2); cursor:pointer;
+  font-family:var(--display); font-size:11px; font-weight:600; letter-spacing:1px;
+  transition:all 0.2s; white-space:nowrap;
+}
+.btn:hover { border-color:var(--accent); color:var(--accent); }
+.btn.green { border-color:var(--green); color:var(--green); background:rgba(0,255,136,0.08); }
+.btn.green:hover { background:rgba(0,255,136,0.18); }
+.btn.orange { border-color:var(--orange); color:var(--orange); background:rgba(255,140,0,0.08); }
+.btn.red { border-color:var(--red); color:var(--red); background:rgba(255,51,85,0.08); }
+.btn.sm { padding:4px 9px; font-size:10px; }
+
+.conn-status { font-size:11px; color:var(--text2); display:flex; align-items:center; gap:6px; margin-top:6px; min-height:18px; }
+
+/* IDB info bar */
+.idb-bar {
+  display:flex; align-items:center; gap:8px; margin-top:8px; padding:7px 10px;
+  background:var(--panel); border:1px solid var(--border2); border-radius:5px; font-size:10px;
+}
+.idb-fill-track { flex:1; height:4px; background:var(--bg3); border-radius:2px; overflow:hidden; }
+.idb-fill-bar { height:100%; background:linear-gradient(90deg, var(--accent), var(--green)); border-radius:2px; transition:width 0.5s; }
+.idb-label { color:var(--text3); }
+.idb-val { color:var(--accent); font-weight:700; }
+
+/* ID filter */
+.id-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:4px; }
+.id-chip {
+  padding:5px 4px; border:1px solid var(--border2); border-radius:4px;
+  text-align:center; cursor:pointer; font-size:11px; background:var(--panel); color:var(--text3);
+  transition:all 0.15s; line-height:1.3;
+}
+.id-chip:hover { border-color:var(--text2); color:var(--text2); }
+.id-chip.on { border-color:var(--accent); color:var(--accent); background:rgba(0,200,255,0.08); font-weight:700; }
+.id-chip .cname { font-size:8px; display:block; font-weight:400; }
+
+/* Display opts */
+.opt-grid { display:flex; gap:4px; flex-wrap:wrap; }
+.opt-btn {
+  padding:4px 9px; border:1px solid var(--border2); border-radius:3px;
+  background:var(--panel); color:var(--text3); cursor:pointer;
+  font-family:var(--mono); font-size:10px; transition:all 0.15s;
+}
+.opt-btn:hover { border-color:var(--text2); color:var(--text2); }
+.opt-btn.on { border-color:var(--accent); color:var(--accent); background:rgba(0,200,255,0.08); }
+
+/* Trace list */
+.trace-list { display:flex; flex-direction:column; gap:5px; }
+.trace-item {
+  display:flex; align-items:center; gap:7px; padding:5px 8px;
+  background:var(--panel); border:1px solid var(--border2); border-radius:4px; font-size:11px;
+}
+.trace-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+.trace-label { flex:1; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.trace-desc { color:var(--text3); font-size:10px; }
+.trace-remove { color:var(--text3); cursor:pointer; padding:0 3px; font-size:12px; transition:color 0.15s; }
+.trace-remove:hover { color:var(--red); }
+.trace-add {
+  display:flex; align-items:center; justify-content:center; gap:6px;
+  padding:6px; background:var(--panel); border:1px dashed var(--border2);
+  border-radius:4px; color:var(--text3); cursor:pointer; font-size:11px; transition:all 0.15s;
+}
+.trace-add:hover { border-color:var(--accent); color:var(--accent); }
+
+/* ─── MAIN CONTENT ─── */
+.mon-main { flex:1; display:flex; flex-direction:column; overflow:hidden; min-width:0; }
+
+/* ─── TRANSPORT BAR ─── */
+.transport-bar {
+  background: linear-gradient(90deg, #0a1520, #0e1c2c);
+  border-bottom: 2px solid var(--border2);
+  padding:10px 16px; flex-shrink:0;
+  display:flex; flex-direction:column; gap:9px;
+}
+
+.transport-top { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+
+.mode-badge {
+  font-family:var(--title); font-size:10px; letter-spacing:2px; padding:4px 10px;
+  border-radius:3px; font-weight:700; white-space:nowrap; flex-shrink:0;
+}
+.mode-badge.live   { color:var(--green);  background:rgba(0,255,136,0.1);  border:1px solid rgba(0,255,136,0.3); }
+.mode-badge.replay { color:var(--orange); background:rgba(255,140,0,0.1);  border:1px solid rgba(255,140,0,0.3); }
+.mode-badge.paused { color:var(--yellow); background:rgba(255,210,0,0.1);  border:1px solid rgba(255,210,0,0.3); }
+.mode-badge.file   { color:var(--accent); background:rgba(0,200,255,0.1);  border:1px solid rgba(0,200,255,0.3); }
+
+.transport-btns { display:flex; align-items:center; gap:4px; }
+.tb {
+  width:32px; height:32px; border-radius:5px; display:flex; align-items:center; justify-content:center;
+  background:var(--panel); border:1px solid var(--border2); color:var(--text2);
+  cursor:pointer; font-size:14px; transition:all 0.15s; user-select:none; flex-shrink:0;
+}
+.tb:hover { border-color:var(--text2); color:var(--text); }
+.tb:active { transform:scale(0.92); }
+.tb.active { border-color:var(--accent); color:var(--accent); background:rgba(0,200,255,0.1); }
+.tb.play-btn { width:38px; height:38px; font-size:16px; border-color:var(--green); color:var(--green); background:rgba(0,255,136,0.08); }
+.tb.play-btn:hover { background:rgba(0,255,136,0.18); }
+.tb.jump-live { border-color:var(--accent); color:var(--accent); font-size:11px; width:auto; padding:0 10px; font-family:var(--display); letter-spacing:1px; }
+.tb.jump-live.at-live { background:rgba(0,200,255,0.15); }
+
+.speed-sel {
+  background:var(--panel); border:1px solid var(--border2); color:var(--orange);
+  padding:5px 8px; border-radius:4px; font-family:var(--mono); font-size:11px; outline:none; cursor:pointer;
+}
+
+.transport-clock {
+  font-family:var(--title); font-size:17px; color:var(--text); letter-spacing:2px;
+  min-width:110px; text-align:center; flex-shrink:0;
+}
+.transport-clock .tc-rel { font-size:11px; color:var(--text3); display:block; text-align:center; margin-top:1px; }
+
+.frame-info { font-size:10px; color:var(--text3); white-space:nowrap; }
+.frame-info span { color:var(--text2); }
+
+.export-btn { margin-left:auto; }
+
+/* Scrub row */
+.scrub-row { display:flex; align-items:center; gap:10px; }
+.scrub-ts { font-size:10px; color:var(--text3); min-width:52px; font-family:var(--mono); }
+.scrub-ts.right { text-align:right; }
+.scrub-wrap { flex:1; height:20px; position:relative; cursor:pointer; display:flex; align-items:center; }
+.scrub-track { width:100%; height:5px; background:var(--bg3); border-radius:3px; position:relative; overflow:visible; }
+.scrub-fill { height:100%; background:linear-gradient(90deg, var(--accent), var(--green)); border-radius:3px; pointer-events:none; }
+.scrub-live-region { position:absolute; right:0; top:0; height:100%; background:rgba(0,255,136,0.12); border-radius:0 3px 3px 0; pointer-events:none; }
+.scrub-thumb {
+  position:absolute; top:50%; transform:translate(-50%,-50%);
+  width:13px; height:13px; border-radius:50%;
+  background:var(--accent); box-shadow:0 0 8px rgba(0,200,255,0.7);
+  pointer-events:none; transition:background 0.2s;
+}
+.scrub-thumb.at-live { background:var(--green); box-shadow:0 0 8px rgba(0,255,136,0.7); }
+.scrub-marker { position:absolute; top:-3px; width:2px; height:11px; border-radius:1px; pointer-events:none; }
+
+/* ─── PIVOT TABLE ─── */
+.pivot-wrap { flex:1; overflow:auto; }
+.pivot-table { width:100%; border-collapse:collapse; font-size:12px; }
+.pivot-table thead { position:sticky; top:0; z-index:5; }
+.pivot-table th {
+  background:var(--bg3); padding:8px 12px;
+  font-family:var(--display); font-size:10px; letter-spacing:2px; text-transform:uppercase;
+  color:var(--text3); border-bottom:1px solid var(--border2); white-space:nowrap;
+  text-align:left; user-select:none;
+}
+.pivot-table td { padding:0; border-bottom:1px solid rgba(30,50,72,0.5); }
+
+.pivot-row { display:flex; align-items:stretch; min-height:52px; }
+.pr-id {
+  width:125px; min-width:125px; padding:9px 12px; border-right:1px solid var(--border);
+  display:flex; flex-direction:column; justify-content:center; cursor:pointer;
+}
+.pr-id:hover { background:rgba(255,255,255,0.02); }
+.pr-id-hex { font-size:14px; font-weight:700; }
+.pr-id-name { font-size:9px; margin-top:2px; opacity:0.65; }
+
+.pr-bytes { flex:1; padding:9px 12px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; min-width:0; }
+.byte-cell { display:inline-flex; flex-direction:column; align-items:center; gap:2px; min-width:38px; }
+.bc-idx { font-size:8px; color:var(--text3); }
+.bc-hex { font-size:13px; font-weight:500; transition: color 0.1s, text-shadow 0.1s; }
+.bc-bin { font-size:8px; color:var(--text3); letter-spacing:0.3px; }
+.bc-dec { font-size:9px; color:var(--text2); }
+.byte-cell.flash .bc-hex { color:var(--green) !important; text-shadow:0 0 10px rgba(0,255,136,0.6); }
+.byte-cell.flash .bc-bin { color:rgba(0,255,136,0.5); }
+.row-flash { animation: rowglow 0.5s ease forwards; }
+@keyframes rowglow { 0%{background:rgba(0,255,136,0.08)} 100%{background:transparent} }
+
+.pr-decoded { width:175px; min-width:175px; padding:9px 12px; border-left:1px solid var(--border); display:flex; align-items:center; font-size:11px; }
+.pr-freq { width:105px; min-width:105px; padding:9px 12px; border-left:1px solid var(--border); display:flex; flex-direction:column; justify-content:center; }
+.pr-freq-hz { font-size:13px; font-weight:700; }
+.pr-freq-ms { font-size:10px; margin-top:2px; color:var(--text3); }
+.pr-age { width:62px; min-width:62px; padding:9px 12px; border-left:1px solid var(--border); display:flex; align-items:center; font-size:11px; color:var(--text2); }
+.pr-count { width:72px; min-width:72px; padding:9px 12px; border-left:1px solid var(--border); display:flex; align-items:center; font-size:11px; color:var(--text2); }
+
+/* ─── GRAPH PANEL ─── */
+.graph-panel {
+  height:190px; min-height:190px; flex-shrink:0;
+  background:var(--bg2); border-top:1px solid var(--border2);
+  display:flex; flex-direction:column;
+}
+.graph-toolbar {
+  display:flex; align-items:center; gap:8px; padding:7px 14px;
+  border-bottom:1px solid var(--border); background:var(--bg3); flex-shrink:0;
+  flex-wrap:wrap;
+}
+.graph-label { font-size:10px; color:var(--text3); letter-spacing:2px; font-family:var(--display); text-transform:uppercase; white-space:nowrap; }
+.graph-time-btns { display:flex; gap:3px; margin-left:auto; }
+.gtb {
+  padding:3px 9px; border-radius:3px; font-size:10px; cursor:pointer;
+  background:var(--panel); border:1px solid var(--border2); color:var(--text3); transition:all 0.15s;
+}
+.gtb:hover { border-color:var(--accent); color:var(--accent); }
+.gtb.on { background:rgba(0,200,255,0.1); border-color:var(--accent); color:var(--accent); }
+.graph-canvas { flex:1; position:relative; overflow:hidden; }
+.graph-svg { position:absolute; inset:0; width:100%; height:100%; }
+
+/* ─── TRACE EDITOR MODAL ─── */
+.modal-overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:200;
+  display:none; align-items:center; justify-content:center;
+  backdrop-filter:blur(4px);
+}
+.modal-overlay.open { display:flex; }
+.modal {
+  background:var(--bg2); border:1px solid var(--border2); border-radius:10px;
+  width:480px; max-width:90vw; box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+  display:flex; flex-direction:column;
+}
+.modal-header {
+  display:flex; align-items:center; padding:16px 20px; border-bottom:1px solid var(--border);
+  font-family:var(--display); font-size:14px; font-weight:700; letter-spacing:1px; color:var(--text);
+}
+.modal-close { margin-left:auto; cursor:pointer; color:var(--text3); font-size:18px; padding:0 4px; }
+.modal-close:hover { color:var(--red); }
+.modal-body { padding:20px; display:flex; flex-direction:column; gap:14px; }
+.modal-row { display:flex; align-items:flex-start; gap:10px; }
+.modal-label { font-size:11px; color:var(--text2); min-width:80px; padding-top:7px; }
+.modal-input {
+  flex:1; background:var(--bg); border:1px solid var(--border2); color:var(--text);
+  padding:7px 10px; border-radius:5px; font-family:var(--mono); font-size:12px; outline:none;
+  transition: border-color 0.2s;
+}
+.modal-input:focus { border-color:var(--accent); }
+.modal-input.formula { color:var(--yellow); }
+.formula-hint { font-size:10px; color:var(--text3); margin-top:4px; line-height:1.6; }
+.formula-hint code { color:var(--accent); background:var(--bg3); padding:1px 4px; border-radius:2px; }
+.preview-box { background:var(--bg3); border:1px solid var(--border2); border-radius:5px; padding:10px 12px; font-size:12px; }
+.preview-val { font-size:20px; font-weight:700; }
+.modal-footer { padding:14px 20px; border-top:1px solid var(--border); display:flex; gap:8px; justify-content:flex-end; }
+.color-row { display:flex; gap:6px; flex-wrap:wrap; }
+.color-pick { width:24px; height:24px; border-radius:4px; border:2px solid transparent; cursor:pointer; transition:border-color 0.15s; }
+.color-pick.selected { border-color:white; }
+
+/* ─── DROPZONE ─── */
+#dropzone {
+  border: 2px dashed var(--border2); border-radius: 7px;
+  padding: 16px 10px; text-align: center; cursor: pointer;
+  background: var(--panel); transition: all 0.2s; position: relative;
+}
+#dropzone:hover { border-color: var(--orange); background: rgba(255,140,0,0.06); }
+#dropzone.drag-over {
+  border-color: var(--orange); background: rgba(255,140,0,0.12);
+  box-shadow: 0 0 16px rgba(255,140,0,0.2);
+}
+#dz-icon { font-size: 24px; margin-bottom: 5px; }
+#dz-label { font-family: var(--display); font-size: 12px; font-weight: 600;
+  letter-spacing: 1px; color: var(--text2); }
+#dz-sub { font-size: 10px; color: var(--text3); margin-top: 3px; }
+#dropzone.has-file { border-style: solid; border-color: var(--orange); }
+#dropzone.has-file #dz-icon { font-size: 18px; }
+
+/* ─── SCROLLBAR ─── */
+::-webkit-scrollbar { width:5px; height:5px; }
+::-webkit-scrollbar-track { background:var(--bg2); }
+::-webkit-scrollbar-thumb { background:var(--border2); border-radius:3px; }
+::-webkit-scrollbar-thumb:hover { background:var(--text3); }
+
+/* ═══════════════════════════════════════════
+   ANALYZE PAGE
+═══════════════════════════════════════════ */
+.az-toolbar {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:10px 18px; background:var(--bg3); border-bottom:1px solid var(--border2);
+  flex-shrink:0; flex-wrap:wrap; gap:8px;
+}
+.az-toolbar-left  { display:flex; align-items:center; gap:14px; }
+.az-toolbar-right { display:flex; align-items:center; gap:10px; }
+.az-title { font-family:var(--display); font-size:13px; font-weight:700; letter-spacing:2px; color:var(--text); }
+.az-stat  { font-size:11px; color:var(--text2); }
+
+.az-filter-btns { display:flex; gap:3px; }
+.az-fbtn {
+  padding:4px 11px; border-radius:3px; font-size:10px; cursor:pointer; letter-spacing:1px;
+  font-family:var(--display); font-weight:600;
+  background:var(--panel); border:1px solid var(--border2); color:var(--text3); transition:all 0.15s;
+}
+.az-fbtn:hover { border-color:var(--text2); color:var(--text2); }
+.az-fbtn.on { background:rgba(0,255,136,0.1); border-color:var(--green); color:var(--green); }
+
+/* ID rows */
+.az-list { flex:1; overflow-y:auto; overflow-x:hidden; padding:12px 18px; display:flex; flex-direction:column; gap:6px; min-height:0; }
+
+.az-row {
+  background:var(--panel); border:1px solid var(--border2); border-radius:7px;
+  transition:border-color 0.2s;
+}
+.az-row.annotated { border-color:rgba(0,255,136,0.35); background:rgba(0,255,136,0.04); }
+.az-row-header {
+  display:flex; align-items:center; gap:0; cursor:pointer; user-select:none; min-height:48px;
+}
+.az-row-header:hover { background:rgba(255,255,255,0.02); }
+
+.az-col-id {
+  width:90px; min-width:90px; padding:10px 14px; border-right:1px solid var(--border);
+  display:flex; flex-direction:column; justify-content:center;
+}
+.az-chevron { margin-left:auto; padding:10px 10px; color:var(--text3); font-size:11px; transition:transform 0.2s; }
+.az-row.expanded .az-chevron { transform:rotate(90deg); color:var(--accent); }
+.az-id-hex  { font-size:15px; font-weight:700; font-family:var(--mono); }
+.az-id-name { font-size:9px; margin-top:2px; opacity:0.7; font-family:var(--display); letter-spacing:1px; }
+
+.az-col-label-stats {
+  width:200px; min-width:160px; padding:8px 12px; border-right:1px solid var(--border);
+  display:flex; flex-direction:column; justify-content:center; gap:4px;
+}
+.az-inline-stats { display:flex; gap:10px; flex-wrap:wrap; }
+.az-name-input {
+  background:transparent; border:none; outline:none; width:100%;
+  font-family:var(--display); font-size:12px; font-weight:600; color:var(--text);
+  letter-spacing:0.5px;
+}
+.az-name-input::placeholder { color:var(--text3); font-weight:400; }
+.az-name-input:focus { color:var(--green); border-bottom:1px solid var(--green); }
+
+.az-col-bytes {
+  flex:1; padding:8px 12px; border-right:1px solid var(--border);
+  display:flex; align-items:center; gap:6px; flex-wrap:wrap; min-width:0;
+}
+.az-byte-box {
+  display:flex; flex-direction:column; align-items:center; gap:3px; min-width:52px;
+}
+.az-byte-idx    { font-size:8px; color:var(--text3); font-family:var(--mono); }
+.az-byte-hist   { width:48px; height:24px; position:relative; background:var(--bg3); border-radius:2px; overflow:hidden; cursor:pointer; }
+.az-hist-bar    { position:absolute; bottom:0; width:100%; background:var(--accent); opacity:0.6; border-radius:1px 1px 0 0; }
+.az-byte-range  { font-size:9px; color:var(--text2); font-family:var(--mono); text-align:center; }
+.az-byte-unique { font-size:8px; color:var(--text3); text-align:center; }
+.az-byte-box.annotated .az-byte-hist { border:1px solid rgba(0,255,136,0.4); }
+.az-byte-box.annotated .az-byte-range { color:var(--green); }
+
+/* az-col-stats merged into az-col-label-stats */
+.az-stat-row { font-size:10px; color:var(--text3); }
+.az-stat-row span { color:var(--text2); }
+
+.az-col-actions {
+  width:80px; min-width:80px; padding:8px 10px;
+  display:flex; align-items:center; justify-content:center; gap:6px;
+}
+.az-edit-btn {
+  padding:5px 10px; border-radius:4px; font-size:10px; cursor:pointer;
+  background:var(--panel); border:1px solid var(--border2); color:var(--text3);
+  font-family:var(--display); font-weight:600; letter-spacing:1px; transition:all 0.15s;
+}
+.az-edit-btn:hover { border-color:var(--green); color:var(--green); }
+
+/* Expanded detail row */
+.az-row-detail {
+  display:none; border-top:1px solid var(--border);
+  padding:12px 14px; background:var(--bg2); overflow-x:auto;
+}
+.az-row.expanded .az-row-detail { display:block; }
+
+/* Bit map editor */
+.bit-map-wrap { display:flex; flex-direction:column; gap:10px; }
+.bit-map-row  { display:flex; align-items:center; gap:8px; }
+.bit-map-label { font-size:10px; color:var(--text3); min-width:48px; font-family:var(--mono); }
+.bit-cells { display:flex; gap:2px; }
+.bit-cell {
+  width:28px; height:28px; border:1px solid var(--border2); border-radius:3px;
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--mono); font-size:10px; cursor:pointer; transition:all 0.12s;
+  background:var(--panel); color:var(--text3); position:relative; user-select:none;
+}
+.bit-cell:hover { border-color:var(--accent); color:var(--accent); }
+.bit-cell.selected { background:rgba(0,200,255,0.15); border-color:var(--accent); color:var(--accent); }
+.bit-cell.in-group { border-color:var(--green); background:rgba(0,255,136,0.1); color:var(--green); }
+.bit-cell.bit-val-0 { color:var(--text3); }
+.bit-cell.bit-val-1 { color:var(--yellow); font-weight:700; }
+
+/* Field definition table */
+.az-fields-table { width:100%; border-collapse:collapse; margin-top:10px; font-size:11px; }
+.az-fields-table th {
+  text-align:left; padding:5px 8px; background:var(--bg3);
+  font-family:var(--display); font-size:9px; letter-spacing:2px; color:var(--text3);
+  border-bottom:1px solid var(--border2);
+}
+.az-fields-table td { padding:5px 8px; border-bottom:1px solid rgba(30,50,72,0.4); vertical-align:middle; }
+.az-field-input {
+  background:transparent; border:none; border-bottom:1px solid var(--border2); outline:none;
+  color:var(--text); font-family:var(--mono); font-size:11px; width:100%;
+}
+.az-field-input:focus { border-bottom-color:var(--green); color:var(--green); }
+.az-field-sel {
+  background:var(--bg3); border:1px solid var(--border2); color:var(--text);
+  border-radius:3px; font-family:var(--mono); font-size:10px; padding:2px 4px; outline:none;
+}
+.az-del-btn { color:var(--text3); cursor:pointer; padding:2px 6px; border-radius:3px; }
+.az-del-btn:hover { color:var(--red); background:rgba(255,51,85,0.1); }
+
+/* ═══════════════════════════════════════════
+   DASHBOARD PAGE (placeholder)
+═══════════════════════════════════════════ */
+.dash-placeholder {
+  flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:16px; color:var(--text3);
+}
+.dash-placeholder .icon { font-size:52px; }
+.dash-placeholder .msg { font-family:var(--display); font-size:18px; letter-spacing:3px; text-transform:uppercase; color:var(--text2); }
+.dash-placeholder .sub { font-size:12px; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="app-header">
+  <div class="app-logo"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version">v0.6.7</div></div>
+  <div class="mode-tabs">
+    <div class="mode-tab active-monitor" id="tab-monitor" onclick="showPage('monitor')">
+      <span>📡</span> Monitor
+      <span class="tab-badge badge-mon" id="tab-mon-badge">LIVE</span>
+    </div>
+    <div class="mode-tab" id="tab-analyze" onclick="showPage('analyze')">
+      <span>🔬</span> Analyze
+      <span class="tab-badge badge-analyze">RE</span>
+    </div>
+    <div class="mode-tab" id="tab-sim" onclick="showPage('sim')">
+      <span>🎛</span> Dashboard
+      <span class="tab-badge badge-sim">SIM</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="idb-stat">BUFFER <span class="val" id="hdr-idb-count">0</span> frames</div>
+    <div style="display:flex;gap:5px;align-items:center;">
+      <button class="btn sm" onclick="saveConfig()" title="Save config to .json">💾 CONFIG</button>
+      <button class="btn sm" onclick="document.getElementById('cfg-input').click()" title="Load config from .json">📂 CONFIG</button>
+      <input type="file" id="cfg-input" accept=".json" style="display:none" onchange="loadConfig(this)">
+    </div>
+    <div class="conn-pill">
+      <div class="dot off" id="hdr-dot"></div>
+      <span id="hdr-conn-label">Disconnected</span>
+    </div>
+  </div>
+</header>
+
+<div class="app-body">
+
+<!-- ═══════════════════════ MONITOR PAGE ═══════════════════════ -->
+<div class="page active" id="page-monitor">
+<div class="monitor-layout">
+
+  <!-- LEFT SIDEBAR -->
+  <div class="mon-sidebar">
+
+    <!-- Source -->
+    <div class="sb-section">
+      <div class="sb-title">Data Source</div>
+      <div class="source-tabs">
+        <div class="src-tab active" id="src-ws" onclick="setSource('ws')">WEBSOCKET</div>
+        <div class="src-tab file-tab" id="src-file" onclick="setSource('file')">LOG FILE</div>
+      </div>
+      <!-- WS mode -->
+      <div id="ws-controls">
+        <div class="ws-row">
+          <input class="ws-input" id="ws-url" value="ws://192.168.178.121/ws" placeholder="ws://host:port">
+          <button class="btn green" id="btn-connect" onclick="wsToggle()">CONNECT</button>
+        </div>
+        <div class="conn-status">
+          <div class="dot off" id="sb-dot"></div>
+          <span id="sb-conn-text">Not connected</span>
+        </div>
+      </div>
+      <!-- File mode -->
+      <div id="file-controls" style="display:none;">
+        <div id="dropzone" onclick="document.getElementById('file-input').click()">
+          <div id="dz-icon">📂</div>
+          <div id="dz-label">Drop .log file here</div>
+          <div id="dz-sub">or click to browse</div>
+          <input type="file" id="file-input" accept=".log,.txt" style="display:none" onchange="loadFile(this)">
+        </div>
+        <div class="conn-status" style="margin-top:6px;">
+          <div class="dot off" id="file-dot"></div>
+          <span id="file-status-text">No file loaded</span>
+        </div>
+      </div>
+      <!-- IDB buffer bar -->
+      <div class="idb-bar">
+        <span class="idb-label">BUFFER</span>
+        <div class="idb-fill-track"><div class="idb-fill-bar" id="idb-fill" style="width:0%"></div></div>
+        <span class="idb-val" id="idb-count">0</span>
+        <button class="btn sm" onclick="exportLog()" title="Export as .log">⬇ LOG</button>
+        <button class="btn sm red" onclick="clearBuffer()" title="Clear buffer">✕</button>
+      </div>
+    </div>
+
+    <!-- ID filter -->
+    <div class="sb-section">
+      <div class="sb-title">
+        ID Filter
+        <span class="sb-title-action" onclick="toggleAllIds()">ALL / NONE</span>
+      </div>
+      <div class="id-grid" id="id-grid"></div>
+    </div>
+
+    <!-- Display -->
+    <div class="sb-section">
+      <div class="sb-title">Display Format</div>
+      <div class="opt-grid" id="opt-grid">
+        <div class="opt-btn on" data-opt="hex" onclick="toggleOpt(this)">HEX</div>
+        <div class="opt-btn on" data-opt="bin" onclick="toggleOpt(this)">BIN</div>
+        <div class="opt-btn on" data-opt="dec" onclick="toggleOpt(this)">DEC</div>
+        <div class="opt-btn on" data-opt="delta" onclick="toggleOpt(this)">MARK Δ</div>
+        <div class="opt-btn on" data-opt="decoded" onclick="toggleOpt(this)">DECODED</div>
+        <div class="opt-btn on" data-opt="freq" onclick="toggleOpt(this)">Δt / Hz</div>
+        <div class="opt-btn on" data-opt="age" onclick="toggleOpt(this)">AGE</div>
+        <div class="opt-btn on" data-opt="count" onclick="toggleOpt(this)">COUNT</div>
+      </div>
+    </div>
+
+    <!-- Debug panel -->
+    <div class="sb-section" id="debug-section">
+      <div class="sb-title">
+        Debug / Raw WS
+        <span class="sb-title-action" onclick="toggleDebug()">SHOW</span>
+      </div>
+      <div id="debug-stats" style="display:none;" style="font-size:10px;color:var(--text2);margin-bottom:8px;display:flex;gap:12px;">
+        <span>RX: <span id="dbg-rx" style="color:var(--green)">0</span></span>
+        <span>Parsed: <span id="dbg-parsed" style="color:var(--accent)">0</span></span>
+        <span>Failed: <span id="dbg-failed" style="color:var(--red)">0</span></span>
+      </div>
+      <div id="debug-log" style="display:none;" style="background:var(--bg);border:1px solid var(--border2);border-radius:4px;padding:6px;height:140px;overflow-y:auto;font-size:10px;font-family:var(--mono);color:var(--text3);"></div>
+    </div>
+
+    <!-- Graph traces -->
+    <div class="sb-section">
+      <div class="sb-title">Graph Traces</div>
+      <div class="trace-list" id="trace-list"></div>
+      <div class="trace-add" onclick="openTraceModal(null)" style="margin-top:6px;">
+        ＋ Add trace…
+      </div>
+    </div>
+
+  </div><!-- /sidebar -->
+
+  <!-- MAIN -->
+  <div class="mon-main">
+
+    <!-- TRANSPORT BAR -->
+    <div class="transport-bar">
+      <div class="transport-top">
+        <div class="mode-badge live" id="mode-badge">LIVE</div>
+
+        <div class="transport-btns">
+          <div class="tb" onclick="stepFrames(-100)" title="−100 frames">⏮</div>
+          <div class="tb" onclick="stepFrames(-1)"  title="−1 frame">◀</div>
+          <div class="tb play-btn" id="btn-play" onclick="togglePlay()" title="Play/Pause">⏸</div>
+          <div class="tb" onclick="stepFrames(1)"   title="+1 frame">▶</div>
+          <div class="tb" onclick="stepFrames(100)" title="+100 frames">⏭</div>
+        </div>
+
+        <select class="speed-sel" id="speed-sel" onchange="setSpeed(this.value)">
+          <option value="0.1">0.1×</option>
+          <option value="0.25">0.25×</option>
+          <option value="0.5">0.5×</option>
+          <option value="1" selected>1×</option>
+          <option value="2">2×</option>
+          <option value="5">5×</option>
+          <option value="10">10×</option>
+          <option value="999">MAX</option>
+        </select>
+
+        <div class="transport-clock">
+          <span id="tc-abs">--:--.---</span>
+          <span class="tc-rel" id="tc-rel">t+0.000s</span>
+        </div>
+
+        <div class="frame-info">Frame <span id="fi-cur">0</span> / <span id="fi-tot">0</span></div>
+
+        <div class="tb jump-live" id="btn-jump-live" onclick="jumpToLive()" title="Jump to live">⚡ LIVE</div>
+        <button class="btn sm export-btn" onclick="exportLog()">⬇ Export .log</button>
+      </div>
+
+      <!-- Scrub bar -->
+      <div class="scrub-row">
+        <span class="scrub-ts" id="scrub-t0">0.000s</span>
+        <div class="scrub-wrap" id="scrub-wrap" onmousedown="scrubStart(event)" ontouchstart="scrubStart(event)">
+          <div class="scrub-track" id="scrub-track">
+            <div class="scrub-live-region" id="scrub-live-region" style="width:0%"></div>
+            <div class="scrub-fill" id="scrub-fill" style="width:0%"></div>
+            <div class="scrub-thumb" id="scrub-thumb" style="left:0%"></div>
+            <!-- markers injected here -->
+          </div>
+        </div>
+        <span class="scrub-ts right" id="scrub-t1">0.000s</span>
+      </div>
+    </div>
+
+    <!-- PIVOT TABLE -->
+    <div class="pivot-wrap">
+      <table class="pivot-table">
+        <thead>
+          <tr>
+            <th style="width:125px">ID</th>
+            <th>BYTES</th>
+            <th id="th-decoded" style="width:175px">DECODED</th>
+            <th id="th-freq"    style="width:105px">FREQ</th>
+            <th id="th-age"     style="width:62px">AGE</th>
+            <th id="th-count"   style="width:72px">COUNT</th>
+          </tr>
+        </thead>
+        <tbody id="pivot-body"></tbody>
+      </table>
+    </div>
+
+    <!-- GRAPH PANEL -->
+    <div class="graph-panel" id="graph-panel">
+      <div class="graph-toolbar">
+        <span class="graph-label">Graph</span>
+        <div id="graph-trace-pills" style="display:flex;gap:5px;flex-wrap:wrap;"></div>
+        <div class="graph-time-btns">
+          <div class="gtb" onclick="setGraphWindow(10)">10s</div>
+          <div class="gtb on" onclick="setGraphWindow(30)">30s</div>
+          <div class="gtb" onclick="setGraphWindow(120)">2min</div>
+          <div class="gtb" onclick="setGraphWindow(600)">10min</div>
+          <div class="gtb" onclick="setGraphWindow(-1)">ALL</div>
+        </div>
+      </div>
+      <div class="graph-canvas" id="graph-canvas">
+        <svg id="graph-svg" class="graph-svg"></svg>
+      </div>
+    </div>
+
+  </div><!-- /mon-main -->
+</div><!-- /monitor-layout -->
+</div><!-- /page-monitor -->
+
+<!-- ═══════════════════════ ANALYZE PAGE ═══════════════════════ -->
+<div class="page" id="page-analyze">
+
+  <!-- Toolbar -->
+  <div class="az-toolbar">
+    <div class="az-toolbar-left">
+      <span class="az-title">🔬 PROTOCOL ANALYZER</span>
+      <span class="az-stat" id="az-stat-total">— IDs</span>
+      <span class="az-stat" id="az-stat-known" style="color:var(--green)">— annotated</span>
+      <span class="az-stat" id="az-stat-frames">— frames</span>
+    </div>
+    <div class="az-toolbar-right">
+      <div class="az-filter-btns">
+        <div class="az-fbtn on" id="azf-all"     onclick="setAzFilter('all')">ALL</div>
+        <div class="az-fbtn"   id="azf-unknown"  onclick="setAzFilter('unknown')">UNKNOWN</div>
+        <div class="az-fbtn"   id="azf-known"    onclick="setAzFilter('known')">ANNOTATED</div>
+      </div>
+      <button class="btn sm" onclick="refreshAnalyze()">↻ REFRESH</button>
+    </div>
+  </div>
+
+  <!-- ID list -->
+  <div class="az-list" id="az-list"></div>
+
+  <!-- Bit editor modal -->
+  <div class="modal-overlay" id="az-modal">
+    <div class="modal" style="width:640px;max-width:95vw;">
+      <div class="modal-header">
+        🔬 Annotate <span id="az-modal-id" style="color:var(--green);margin-left:6px;"></span>
+        <span class="modal-close" onclick="closeAzModal()">✕</span>
+      </div>
+      <div class="modal-body" id="az-modal-body" style="gap:16px;max-height:70vh;overflow-y:auto;">
+        <!-- dynamic content -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeAzModal()">Cancel</button>
+        <button class="btn green" onclick="saveAzAnnotation()">Save</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+
+<!-- ═══════════════════════ DASHBOARD PAGE ═══════════════════════ -->
+<div class="page" id="page-sim">
+  <div class="dash-placeholder">
+    <div class="icon">🎛</div>
+    <div class="msg">Dashboard — Coming Next</div>
+    <div class="sub">Widget canvas, formula binding, drag & drop layout</div>
+  </div>
+</div>
+
+</div><!-- /app-body -->
+
+<!-- TRACE EDITOR MODAL -->
+<div class="modal-overlay" id="trace-modal">
+  <div class="modal">
+    <div class="modal-header">
+      📈 Graph Trace
+      <span class="modal-close" onclick="closeTraceModal()">✕</span>
+    </div>
+    <div class="modal-body">
+      <div class="modal-row">
+        <span class="modal-label">Label</span>
+        <input class="modal-input" id="te-label" placeholder="e.g. Battery Current">
+      </div>
+      <div class="modal-row">
+        <span class="modal-label">Frame ID</span>
+        <input class="modal-input" id="te-id" placeholder="0x00D" oninput="previewFormula()">
+      </div>
+      <div class="modal-row" style="flex-direction:column;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+          <span class="modal-label" style="padding-top:0">Formula</span>
+          <span style="font-size:10px;color:var(--text3)">JS expression — available: <code style="color:var(--accent);background:var(--bg3);padding:1px 4px;border-radius:2px;">b(n)</code> <code style="color:var(--accent);background:var(--bg3);padding:1px 4px;border-radius:2px;">b(n,m)</code> <code style="color:var(--accent);background:var(--bg3);padding:1px 4px;border-radius:2px;">bit(b,n)</code> <code style="color:var(--accent);background:var(--bg3);padding:1px 4px;border-radius:2px;">bits(b,f,t)</code></span>
+        </div>
+        <input class="modal-input formula" id="te-formula" placeholder="(b(0,1) - 0x2000) * 10" oninput="previewFormula()">
+        <div class="formula-hint">
+          <code>b(0)</code> → Byte 0 uint8 &nbsp;
+          <code>b(0,1)</code> → Bytes 0+1 uint16 LE &nbsp;
+          <code>b(0,1,'be')</code> → big-endian<br>
+          <code>bit(b(1), 3)</code> → single bit &nbsp;
+          <code>bits(b(1), 2, 5)</code> → bit range &nbsp;
+          <code>b(2) / 16.0</code> → scale
+        </div>
+      </div>
+      <div class="modal-row">
+        <span class="modal-label">Unit</span>
+        <input class="modal-input" id="te-unit" placeholder="mA, V, °C …" style="max-width:120px;">
+        <span class="modal-label" style="min-width:40px;">Color</span>
+        <div class="color-row" id="te-colors"></div>
+      </div>
+      <div class="modal-row">
+        <span class="modal-label">Scale</span>
+        <input class="modal-input" id="te-min" placeholder="auto" style="max-width:80px;">
+        <span style="color:var(--text3);padding:0 6px;line-height:32px;">to</span>
+        <input class="modal-input" id="te-max" placeholder="auto" style="max-width:80px;">
+      </div>
+      <div class="preview-box" id="formula-preview">
+        <div style="font-size:10px;color:var(--text3);margin-bottom:4px;">PREVIEW (last frame)</div>
+        <div class="preview-val" id="preview-val" style="color:var(--text3);">—</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeTraceModal()">Cancel</button>
+      <button class="btn green" onclick="saveTrace()">Save Trace</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════════
+// KNOWN IDs
+// ═══════════════════════════════════════════════════════════════
+const KNOWN = {
+  '005': { name:'RSM RAIN SENSOR',  color:'#ff8c00', decode: d => { const v=d[0]; return v===0x40?'⟳ REST':v===0x01?'✓ AUTO':v===0x00?'▶ ACTIVE':`0x${v.toString(16).toUpperCase()}`; }},
+  '006': { name:'BCM 0x06 (?)',     color:'#00c8ff' },
+  '008': { name:'UNKNOWN',          color:'#5a8aaa' },
+  '00D': { name:'BAT SENSOR',       color:'#ffd200', decode: d => { if(d.length<3) return null; const I=((d[1]<<8|d[0])-0x2000)*10; const V=(d[2]/16).toFixed(2); return `I=${I>0?'+':''}${I}mA  V=${V}V`; }},
+  '00E': { name:'BAT EXT1',         color:'#ffaa00' },
+  '00F': { name:'BAT EXT2',         color:'#ffaa00' },
+  '010': { name:'BCM MISC',         color:'#c090ff' },
+  '017': { name:'BAT 0x17',         color:'#ffd200' },
+  '020': { name:'BCM WIPER CTL',    color:'#00ff88', decode: d => { const s=d[1]&0x0F; return `mode=0x${d[0].toString(16).toUpperCase()} sens=${s}`; }},
+  '022': { name:'BAT 0x22',         color:'#ffd200' },
+  '026': { name:'BAT 0x26',         color:'#ffd200' },
+  '027': { name:'BAT 0x27',         color:'#ffd200' },
+  '02A': { name:'BAT 0x2A',         color:'#ffd200' },
+  '02B': { name:'IMS DATA',         color:'#b060ff', decode: d => { let s=''; for(let i=2;i<d.length;i++) s+=d[i]>=0x20&&d[i]<0x7f?String.fromCharCode(d[i]):'.'; return s?`"${s}"`:null; }},
+  '03C': { name:'SLEEP CMD',        color:'#ff3355' },
+};
+
+// ═══════════════════════════════════════════════════════════════
+// INDEXEDDB RING BUFFER
+// ═══════════════════════════════════════════════════════════════
+const IDB_NAME = 'linbus_buffer';
+const IDB_STORE = 'frames';
+const IDB_MAX = 200000;
+let db = null;
+let idbWriteSeq = 0;  // monotonic write key
+let idbCount = 0;
+
+async function idbOpen() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open(IDB_NAME, 2);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains(IDB_STORE)) {
+        d.createObjectStore(IDB_STORE, { keyPath:'seq' });
+      }
+    };
+    req.onsuccess = e => { db = e.target.result; res(db); };
+    req.onerror = e => rej(e);
+  });
+}
+
+async function idbCount_() {
+  return new Promise(res => {
+    const tx = db.transaction(IDB_STORE, 'readonly');
+    tx.objectStore(IDB_STORE).count().onsuccess = e => res(e.target.result);
+  });
+}
+
+async function idbPut(frame) {
+  if (!db) return;
+  frame.seq = idbWriteSeq++;
+  const tx = db.transaction(IDB_STORE, 'readwrite');
+  const store = tx.objectStore(IDB_STORE);
+  store.put(frame);
+  idbCount++;
+  // Trim if over limit
+  if (idbWriteSeq % 500 === 0) idbTrim();
+  updateIdbUI();
+}
+
+async function idbTrim() {
+  const count = await idbCount_();
+  if (count <= IDB_MAX) return;
+  const trim = count - IDB_MAX;
+  const tx = db.transaction(IDB_STORE, 'readwrite');
+  const store = tx.objectStore(IDB_STORE);
+  const req = store.openCursor();
+  let removed = 0;
+  req.onsuccess = e => {
+    const cursor = e.target.result;
+    if (cursor && removed < trim) { cursor.delete(); removed++; cursor.continue(); }
+  };
+  idbCount = IDB_MAX;
+  updateIdbUI();
+}
+
+async function idbGetRange(fromSeq, toSeq) {
+  return new Promise(res => {
+    const tx = db.transaction(IDB_STORE, 'readonly');
+    const store = tx.objectStore(IDB_STORE);
+    const range = IDBKeyRange.bound(fromSeq, toSeq);
+    const results = [];
+    store.openCursor(range).onsuccess = e => {
+      const cursor = e.target.result;
+      if (cursor) { results.push(cursor.value); cursor.continue(); }
+      else res(results);
+    };
+  });
+}
+
+async function idbGetAll() {
+  return new Promise(res => {
+    const tx = db.transaction(IDB_STORE, 'readonly');
+    const store = tx.objectStore(IDB_STORE);
+    store.getAll().onsuccess = e => res(e.target.result);
+  });
+}
+
+async function idbClear() {
+  return new Promise(res => {
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).clear().onsuccess = () => {
+      idbCount = 0; idbWriteSeq = 0; updateIdbUI(); res();
+    };
+  });
+}
+
+function updateIdbUI() {
+  const pct = Math.min(100, (idbCount / IDB_MAX) * 100);
+  document.getElementById('idb-fill').style.width = pct + '%';
+  document.getElementById('idb-count').textContent = idbCount.toLocaleString();
+  document.getElementById('hdr-idb-count').textContent = idbCount.toLocaleString();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PARSE candump line
+// ═══════════════════════════════════════════════════════════════
+function parseLine(line) {
+  if (!line || line.startsWith('#')) return null;
+  // Format 1: candump  ->  (125.334567) lin0 00D#5F1FC44F # OK Classic
+  const m1 = line.match(/^\((\d+\.\d+)\)\s+\w+\s+([0-9A-Fa-f]+)#([0-9A-Fa-f]*)\s*(?:#\s*(.*))?/);
+  if (m1) {
+    const id = m1[2].toUpperCase().padStart(3,'0');
+    const dataHex = m1[3].toUpperCase();
+    const bytes = [];
+    for (let i=0; i<dataHex.length; i+=2) bytes.push(parseInt(dataHex.substr(i,2),16));
+    const comment = (m1[4]||'').trim();
+    return {
+      ts: parseFloat(m1[1]), id, dataHex, bytes,
+      status: comment.includes('UNANSWERED') ? 'unans' : comment.includes('ERROR') ? 'err' : 'ok',
+    };
+  }
+
+  // Format 2: pipe  ->  125.334 | 05 | 40 02 | CLA | @. |
+  //                 ->  125.334 | 05 |  | UNA |  |        (unanswered)
+  const m2 = line.match(/^(\d+\.\d+)\s*\|\s*([0-9A-Fa-f]+)\s*\|\s*([0-9A-Fa-f ]*)\s*\|\s*(\w+)/);
+  if (m2) {
+    const id = m2[2].toUpperCase().padStart(3,'0');
+    const dataHex = m2[3].replace(/\s+/g,'').toUpperCase();
+    const bytes = [];
+    for (let i=0; i<dataHex.length; i+=2) bytes.push(parseInt(dataHex.substr(i,2),16));
+    const flag = m2[4].toUpperCase();
+    const status = flag.startsWith('UNA') ? 'unans' : flag.startsWith('ERR') ? 'err' : 'ok';
+    return { ts: parseFloat(m2[1]), id, dataHex, bytes, status };
+  }
+
+  return null;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// APP STATE
+// ═══════════════════════════════════════════════════════════════
+let source = 'ws';         // 'ws' | 'file'
+let ws = null;
+let wsConnected = false;
+
+// Playhead
+let playheadSeq = 0;       // current display position (seq in IDB)
+let liveSeq = 0;           // latest seq written
+let isLive = true;         // following live tip
+let isPlaying = true;
+let playSpeed = 1.0;
+let playTimer = null;
+
+// File replay
+let fileFrames = [];       // all parsed frames from file
+let filePlayIdx = 0;       // current file play index
+let fileTs0 = 0;           // first timestamp in file
+let fileWallStart = 0;     // wall clock when play started
+
+// Pivot state
+let pivotData = {};        // id → { bytes, lastTs, count, freq:{avgMs,hz}, decoded, lastSeq }
+let filteredIds = new Set();
+let knownIds = new Set();
+
+// Display opts
+let opts = { hex:true, bin:true, dec:true, delta:true, decoded:true, freq:true, age:true, count:true };
+
+// Graph
+let graphWindow = 30;      // seconds
+let traces = [];           // { id, formula, label, unit, color, min, max }
+let graphHistory = {};     // id → [{ts, val}]
+const GRAPH_COLORS = ['#00ff88','#ffd200','#00c8ff','#ff8c00','#b060ff','#ff3355','#00ffcc','#ff9fff'];
+
+let editingTraceIdx = null;
+
+// ═══════════════════════════════════════════════════════════════
+// SOURCE SWITCHING
+// ═══════════════════════════════════════════════════════════════
+function setSource(s) {
+  source = s;
+  document.getElementById('src-ws').classList.toggle('active', s==='ws');
+  document.getElementById('src-file').classList.toggle('active', s==='file');
+  document.getElementById('ws-controls').style.display   = s==='ws'   ? '' : 'none';
+  document.getElementById('file-controls').style.display = s==='file' ? '' : 'none';
+  if (s==='ws' && ws) { /* keep ws */ }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DEBUG
+// ═══════════════════════════════════════════════════════════════
+let dbgRx=0, dbgParsed=0, dbgFailed=0;
+let dbgVisible=false;
+
+function dbgLog(msg, color) {
+  const el = document.getElementById('debug-log');
+  if (!el) return;
+  const line = document.createElement('div');
+  line.style.color = color || 'var(--text2)';
+  line.style.borderBottom = '1px solid rgba(30,50,72,0.4)';
+  line.style.padding = '2px 0';
+  line.style.wordBreak = 'break-all';
+  line.textContent = msg;
+  el.appendChild(line);
+  // Keep last 100 lines
+  while (el.children.length > 100) el.removeChild(el.firstChild);
+  el.scrollTop = el.scrollHeight;
+}
+
+function dbgUpdateStats() {
+  document.getElementById('dbg-rx').textContent     = dbgRx;
+  document.getElementById('dbg-parsed').textContent = dbgParsed;
+  document.getElementById('dbg-failed').textContent = dbgFailed;
+}
+
+function toggleDebug() {
+  dbgVisible = !dbgVisible;
+  document.getElementById('debug-log').style.display   = dbgVisible ? '' : 'none';
+  document.getElementById('debug-stats').style.display = dbgVisible ? '' : 'none';
+  document.querySelector('#debug-section .sb-title-action').textContent = dbgVisible ? 'HIDE' : 'SHOW';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// WEBSOCKET
+// ═══════════════════════════════════════════════════════════════
+function wsToggle() {
+  if (wsConnected) wsDisconnect();
+  else wsConnect();
+}
+
+function wsDisconnect() {
+  if (ws) { ws.close(); ws = null; }
+  wsConnected = false;
+  setConnUI('off', 'Disconnected');
+}
+
+function wsConnect() {
+  if (ws) { ws.close(); ws=null; }
+  const url = document.getElementById('ws-url').value.trim();
+  setConnUI('connecting', `Connecting…`);
+  dbgLog(`→ Connecting to ${url}`, 'var(--accent)');
+  try {
+    ws = new WebSocket(url);
+  } catch(e) {
+    setConnUI('error', 'Invalid URL');
+    dbgLog(`✗ Invalid URL: ${e.message}`, 'var(--red)');
+    return;
+  }
+  ws.onopen = () => {
+    wsConnected = true;
+    setConnUI('live', url);
+    document.getElementById('btn-connect').textContent = 'DISCONNECT';
+    document.getElementById('btn-connect').classList.replace('green','red');
+    isLive = true; resumeLive();
+    dbgLog(`✓ Connected to ${url}`, 'var(--green)');
+    // Request candump format from ESP32 sniffer
+    setTimeout(() => {
+      ws.send('FORMAT CANDUMP');
+      dbgLog(`→ Sent: FORMAT CANDUMP`, 'var(--accent)');
+    }, 200);
+  };
+  ws.onclose = e => {
+    wsConnected = false;
+    setConnUI('off', 'Disconnected');
+    document.getElementById('btn-connect').textContent = 'CONNECT';
+    document.getElementById('btn-connect').classList.replace('red','green');
+    dbgLog(`✗ Closed (code=${e.code} reason=${e.reason||'—'})`, 'var(--red)');
+  };
+  ws.onerror = e => {
+    wsConnected = false;
+    setConnUI('error', 'Connection error');
+    dbgLog(`✗ WS error`, 'var(--red)');
+  };
+  ws.onmessage = e => {
+    dbgRx++;
+    // Show first 120 chars of raw message
+    const raw = typeof e.data === 'string' ? e.data : '[binary]';
+    const preview = raw.substring(0, 120).replace(/\n/g, '↵').replace(/\r/g,'⏎');
+    dbgLog(`← [${dbgRx}] ${preview}`, 'var(--text)');
+
+    const lines = raw.split('\n');
+    let parsedThis = 0;
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      if (trimmed.startsWith('#')) continue;
+      const frame = parseLine(trimmed);
+      if (frame) {
+        dbgParsed++; parsedThis++;
+        ingestFrame(frame);
+      } else if (!trimmed.startsWith('#')) {
+        dbgFailed++;
+        if (dbgFailed <= 10 || dbgFailed % 50 === 0) {
+          dbgLog(`  ↳ parse fail: "${trimmed.substring(0,80)}"`, 'var(--red)');
+        }
+      }
+    }
+    if (parsedThis > 0) {
+      dbgLog(`  ↳ parsed ${parsedThis} frame(s)`, 'var(--green)');
+    }
+    dbgUpdateStats();
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FILE LOADING
+// ═══════════════════════════════════════════════════════════════
+function loadFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  handleFileObject(file);
+}
+
+async function handleFileObject(file) {
+  setFileStatusUI('loading', `Loading ${file.name}…`);
+  // update dropzone appearance
+  const dz = document.getElementById('dropzone');
+  dz.classList.add('has-file');
+  document.getElementById('dz-icon').textContent = '📄';
+  document.getElementById('dz-label').textContent = file.name;
+  document.getElementById('dz-sub').textContent = (file.size/1024).toFixed(1) + ' KB — click to replace';
+  const reader = new FileReader();
+  reader.onload = async e => {
+    const lines = e.target.result.split('\n');
+    frameBufClear();
+    await idbClear();
+    fileFrames = [];
+    for (const line of lines) {
+      const f = parseLine(line.trim());
+      if (f) { fileFrames.push(f); frameBufPush(f); addIdChip(f.id); }
+    }
+    if (frameBuf.length === 0) { setFileStatusUI('error','No valid frames found'); return; }
+    setFileStatusUI('file', `${frameBuf.length.toLocaleString()} frames loaded`);
+    // also write to IDB for export
+    for (const f of fileFrames) await idbPut({...f});
+    liveSeq = idbWriteSeq - 1;
+    dvrIdx = 0;
+    isLive = false;
+    isPlaying = false;
+    clearInterval(dvrReplayTimer); dvrReplayTimer = null;
+    // Build pivot and graph for frame 0 (show initial state, don't auto-play)
+    rebuildPivotToIndex(0);
+    updatePlayBtn();
+    updateScrub();
+    updateModeBadge();
+    updatePlayheadDisplay(frameBuf[0]);
+  };
+  reader.readAsText(file);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DRAG & DROP
+// ═══════════════════════════════════════════════════════════════
+function initDropzone() {
+  const dz = document.getElementById('dropzone');
+  if (!dz) return;
+
+  dz.addEventListener('dragover', e => {
+    e.preventDefault(); e.stopPropagation();
+    dz.classList.add('drag-over');
+  });
+  dz.addEventListener('dragleave', e => {
+    e.preventDefault(); e.stopPropagation();
+    dz.classList.remove('drag-over');
+  });
+  dz.addEventListener('drop', e => {
+    e.preventDefault(); e.stopPropagation();
+    dz.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    // switch to file mode automatically
+    setSource('file');
+    handleFileObject(file);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// INGEST (WS path) — write to IDB + update pivot if live
+// ═══════════════════════════════════════════════════════════════
+async function ingestFrame(frame) {
+  frameBufPush(frame);
+  await idbPut({...frame});
+  liveSeq = idbWriteSeq - 1;
+  addIdChip(frame.id);
+  if (isLive) {
+    dvrIdx = frameBuf.length - 1;
+    applyFrameToPivot(frame, true);
+    pushGraphPoint(frame);
+    updateTransportClock(frame);
+    updateScrub();
+  } else {
+    updateScrub(); // just update live end-marker
+  }
+}
+
+// File replay handled by dvrReplayTick via startDvrReplay()
+
+// ═══════════════════════════════════════════════════════════════
+// PIVOT APPLICATION
+// ═══════════════════════════════════════════════════════════════
+function applyFrameToPivot(frame, animate) {
+  if (!filteredIds.has(frame.id)) return;
+  const prev = pivotData[frame.id];
+  const info = KNOWN[frame.id];
+  const decoded = info?.decode ? info.decode(frame.bytes) : null;
+
+  // Frequency
+  let freq = prev?.freq;
+  if (prev && frame.ts > prev.lastTs) {
+    const dt = (frame.ts - prev.lastTs) * 1000;
+    const prevAvg = prev.freq?.avgMs || dt;
+    const avgMs = prevAvg * 0.85 + dt * 0.15; // EMA
+    freq = { avgMs, hz: 1000/avgMs };
+  }
+
+  pivotData[frame.id] = {
+    bytes: frame.bytes, dataHex: frame.dataHex, lastTs: frame.ts,
+    count: (prev?.count||0) + 1,
+    freq, decoded,
+    prevBytes: prev?.bytes,
+  };
+
+  renderPivotRow(frame.id, animate && prev !== undefined);
+}
+
+function renderPivotRow(id, animate) {
+  const info = KNOWN[id];
+  const d = pivotData[id];
+  if (!d) return;
+  const color = info?.color || 'var(--text2)';
+
+  const now = performance.now();
+  const ageSec = d.lastTs ? ((source==='ws' ? now/1000 : 0) - d.lastTs) : 0;
+
+  // Bytes
+  let bytesHtml = '';
+  for (let i=0; i<d.bytes.length; i++) {
+    const bv = d.bytes[i];
+    const changed = animate && d.prevBytes && d.prevBytes[i] !== bv;
+    const hex = bv.toString(16).toUpperCase().padStart(2,'0');
+    const bin = bv.toString(2).padStart(8,'0');
+    bytesHtml += `<div class="byte-cell${changed?' flash':''}" id="bc-${id}-${i}">
+      <div class="bc-idx">B${i}</div>
+      ${opts.hex ? `<div class="bc-hex">${hex}</div>` : ''}
+      ${opts.bin ? `<div class="bc-bin">${bin}</div>` : ''}
+      ${opts.dec ? `<div class="bc-dec">${bv}</div>` : ''}
+    </div>`;
+  }
+
+  const freqHtml = opts.freq && d.freq
+    ? `<div class="pr-freq-hz" style="color:${color}">${d.freq.hz.toFixed(1)} Hz</div>
+       <div class="pr-freq-ms">${d.freq.avgMs.toFixed(1)} ms</div>`
+    : opts.freq ? '<div class="pr-freq-ms">—</div>' : '';
+
+  const ageStr = source==='ws' ? formatAge(ageSec) : '—';
+
+  const rowHtml = `
+    <div class="pivot-row${animate?' row-flash':''}">
+      <div class="pr-id" onclick="toggleId('${id}', null)">
+        <div class="pr-id-hex" style="color:${color}">0x${id}</div>
+        <div class="pr-id-name" style="color:${color}">${info?.name||''}</div>
+      </div>
+      <div class="pr-bytes">${bytesHtml}</div>
+      ${opts.decoded ? `<div class="pr-decoded" style="color:${color};opacity:0.9;">${d.decoded||'—'}</div>` : ''}
+      ${opts.freq ? `<div class="pr-freq">${freqHtml}</div>` : ''}
+      ${opts.age ? `<div class="pr-age">${ageStr}</div>` : ''}
+      ${opts.count ? `<div class="pr-count">${d.count.toLocaleString()}</div>` : ''}
+    </div>`;
+
+  let tr = document.getElementById('pivot-row-'+id);
+  if (!tr) {
+    tr = document.createElement('tr');
+    tr.id = 'pivot-row-'+id;
+    const td = document.createElement('td');
+    tr.appendChild(td);
+    // Insert sorted by id
+    const ids = [...document.querySelectorAll('[id^="pivot-row-"]')].map(r=>r.id.replace('pivot-row-',''));
+    ids.push(id);
+    ids.sort();
+    const idx = ids.indexOf(id);
+    const tbody = document.getElementById('pivot-body');
+    if (idx >= tbody.children.length) tbody.appendChild(tr);
+    else tbody.insertBefore(tr, tbody.children[idx]);
+  }
+  tr.firstChild.innerHTML = rowHtml;
+}
+
+function formatAge(sec) {
+  if (sec < 0.001) return '<1ms';
+  if (sec < 1) return `${(sec*1000).toFixed(0)}ms`;
+  return `${sec.toFixed(1)}s`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// UNIFIED FRAME BUFFER (RAM) — used by both WS and File modes
+// WS frames are appended here as they arrive (ring, max 200k)
+// File frames are loaded here on open
+// ═══════════════════════════════════════════════════════════════
+let frameBuf = [];          // [{ts, id, dataHex, bytes, status}, ...]
+const FRAME_BUF_MAX = 200000;
+let dvrIdx = 0;             // current playhead index into frameBuf
+let dvrReplayTimer = null;  // setInterval handle for replay
+let dvrReplayWallStart = 0; // wall clock reference for replay speed
+
+function frameBufPush(frame) {
+  frameBuf.push(frame);
+  if (frameBuf.length > FRAME_BUF_MAX) frameBuf.shift();
+}
+
+function frameBufClear() {
+  frameBuf = [];
+  dvrIdx = 0;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TRANSPORT CONTROLS
+// ═══════════════════════════════════════════════════════════════
+function togglePlay() {
+  isPlaying = !isPlaying;
+  if (isPlaying && isLive) {
+    // resume live → jump to end
+    dvrIdx = frameBuf.length - 1;
+    clearInterval(dvrReplayTimer);
+    dvrReplayTimer = null;
+  } else if (isPlaying && !isLive) {
+    // resume replay from current position
+    startDvrReplay();
+  } else {
+    // pause
+    clearInterval(dvrReplayTimer);
+    dvrReplayTimer = null;
+    isLive = false;
+  }
+  updatePlayBtn();
+  updateModeBadge();
+}
+
+function updatePlayBtn() {
+  document.getElementById('btn-play').textContent = isPlaying ? '⏸' : '▶';
+}
+
+function stepFrames(delta) {
+  if (frameBuf.length === 0) return;
+  isPlaying = false;
+  isLive = false;
+  clearInterval(dvrReplayTimer);
+  dvrReplayTimer = null;
+  dvrIdx = Math.max(0, Math.min(frameBuf.length - 1, dvrIdx + delta));
+  rebuildPivotToIndex(dvrIdx);
+  updateTransportClock(frameBuf[dvrIdx]);
+  updateScrub();
+  updatePlayBtn();
+  updateModeBadge();
+}
+
+function rebuildPivotToIndex(upTo) {
+  pivotData = {};
+  document.getElementById('pivot-body').innerHTML = '';
+  graphHistory = {};
+  const end = Math.min(upTo, frameBuf.length - 1);
+  // For performance: only rebuild last graphWindow*maxHz frames for graph,
+  // but full pivot needs last-state-per-id → scan all
+  for (let i = 0; i <= end; i++) {
+    applyFrameToPivot(frameBuf[i], false);
+    pushGraphPoint(frameBuf[i], true);
+  }
+  redrawGraph();
+}
+
+function startDvrReplay() {
+  clearInterval(dvrReplayTimer);
+  if (frameBuf.length === 0) return;
+  const startTs  = frameBuf[dvrIdx]?.ts || 0;
+  const originTs = frameBuf[0]?.ts || 0;
+  dvrReplayWallStart = performance.now() - (startTs - originTs) * 1000 / playSpeed;
+  dvrReplayTimer = setInterval(dvrReplayTick, 16);
+}
+
+function dvrReplayTick() {
+  if (!isPlaying || isLive) return;
+  const wallNow   = (performance.now() - dvrReplayWallStart) * playSpeed;
+  const targetTs  = (frameBuf[0]?.ts || 0) + wallNow / 1000;
+  while (dvrIdx < frameBuf.length && frameBuf[dvrIdx].ts <= targetTs) {
+    applyFrameToPivot(frameBuf[dvrIdx], true);
+    pushGraphPoint(frameBuf[dvrIdx]);
+    dvrIdx++;
+  }
+  if (dvrIdx >= frameBuf.length) {
+    // reached the end — if WS connected switch back to live
+    if (source === 'ws' && wsConnected) {
+      isLive = true;
+      clearInterval(dvrReplayTimer);
+      dvrReplayTimer = null;
+    } else {
+      isPlaying = false;
+      clearInterval(dvrReplayTimer);
+      dvrReplayTimer = null;
+      document.getElementById('mode-badge').textContent = 'END';
+      document.getElementById('mode-badge').className = 'mode-badge paused';
+    }
+    updatePlayBtn();
+    return;
+  }
+  updateTransportClock(frameBuf[dvrIdx - 1]);
+  updateScrub();
+}
+
+function setSpeed(v) {
+  playSpeed = parseFloat(v);
+  if (isPlaying && !isLive && dvrReplayTimer) {
+    // restart replay from current position with new speed
+    startDvrReplay();
+  }
+}
+
+function jumpToLive() {
+  isLive = true;
+  isPlaying = true;
+  dvrIdx = frameBuf.length - 1;
+  clearInterval(dvrReplayTimer);
+  dvrReplayTimer = null;
+  updatePlayBtn();
+  updateModeBadge();
+  updateScrub();
+}
+
+function resumeLive() {
+  isLive = true; isPlaying = true;
+  dvrIdx = frameBuf.length - 1;
+  updatePlayBtn(); updateModeBadge();
+}
+
+function updateModeBadge() {
+  const el = document.getElementById('mode-badge');
+  if (source==='ws') {
+    if (!wsConnected)  { el.textContent='OFFLINE'; el.className='mode-badge paused'; return; }
+    if (!isPlaying)    { el.textContent='PAUSED';  el.className='mode-badge paused'; return; }
+    if (isLive)        { el.textContent='LIVE';    el.className='mode-badge live';   return; }
+                         el.textContent='BUFFERED'; el.className='mode-badge file';
+  } else {
+    if (!isPlaying && fileFrames.length>0) { el.textContent='PAUSED'; el.className='mode-badge paused'; }
+    else if (isPlaying)                    { el.textContent='REPLAY'; el.className='mode-badge replay'; }
+    else                                   { el.textContent='FILE';   el.className='mode-badge file';   }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SCRUB BAR
+// ═══════════════════════════════════════════════════════════════
+let scrubDragging = false;
+
+function updateScrub() {
+  const total = frameBuf.length;
+  if (total === 0) return;
+  const cur  = Math.min(dvrIdx, total - 1);
+  const pct  = total > 1 ? (cur / (total - 1)) * 100 : 0;
+
+  document.getElementById('scrub-fill').style.width  = pct + '%';
+  document.getElementById('scrub-thumb').style.left  = pct + '%';
+  document.getElementById('scrub-thumb').className   = 'scrub-thumb' + (isLive ? ' at-live' : '');
+  document.getElementById('btn-jump-live').className = 'tb jump-live' + (isLive ? ' at-live' : '');
+
+  const f0  = frameBuf[0];
+  const fN  = frameBuf[total - 1];
+  const fCur = frameBuf[cur];
+  if (f0 && fN) {
+    document.getElementById('scrub-t0').textContent = '0.000s';
+    document.getElementById('scrub-t1').textContent = (fN.ts - f0.ts).toFixed(3) + 's';
+    const relTs = fCur ? (fCur.ts - f0.ts) : 0;
+    document.getElementById('tc-rel').textContent = `+${relTs.toFixed(3)}s`;
+  }
+
+  document.getElementById('fi-cur').textContent = cur.toLocaleString();
+  document.getElementById('fi-tot').textContent = total.toLocaleString();
+}
+
+function scrubStart(e) {
+  scrubDragging = true;
+  scrubMove(e);
+  window.addEventListener('mousemove', scrubMove);
+  window.addEventListener('mouseup', scrubEnd);
+  window.addEventListener('touchmove', scrubMove, {passive:false});
+  window.addEventListener('touchend', scrubEnd);
+  e.preventDefault();
+}
+function scrubEnd() {
+  scrubDragging = false;
+  window.removeEventListener('mousemove', scrubMove);
+  window.removeEventListener('mouseup', scrubEnd);
+  window.removeEventListener('touchmove', scrubMove);
+  window.removeEventListener('touchend', scrubEnd);
+}
+function scrubMove(e) {
+  if (!scrubDragging) return;
+  const track = document.getElementById('scrub-track');
+  const rect = track.getBoundingClientRect();
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  let pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+
+  if (frameBuf.length > 0) {
+    isLive = false;
+    isPlaying = false;
+    clearInterval(dvrReplayTimer); dvrReplayTimer = null;
+    dvrIdx = Math.floor(pct * (frameBuf.length - 1));
+    rebuildPivotToIndex(dvrIdx);
+    updateTransportClock(frameBuf[dvrIdx]);
+    updateScrub(); updatePlayBtn(); updateModeBadge();
+  }
+  e.preventDefault();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CLOCK
+// ═══════════════════════════════════════════════════════════════
+function updateTransportClock(frame) {
+  if (!frame) return;
+  const ts = frame.ts;
+  const m = Math.floor(ts / 60);
+  const s = (ts % 60).toFixed(3);
+  document.getElementById('tc-abs').textContent = `${String(m).padStart(2,'0')}:${String(Math.floor(ts%60)).padStart(2,'0')}.${((ts%1)*1000).toFixed(0).padStart(3,'0')}`;
+}
+function updatePlayheadDisplay(frame) {
+  if (!frame) return;
+  updateTransportClock(frame);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ID CHIPS
+// ═══════════════════════════════════════════════════════════════
+function addIdChip(id) {
+  if (knownIds.has(id)) return;
+  knownIds.add(id);
+  filteredIds.add(id);
+  const info = KNOWN[id];
+  const grid = document.getElementById('id-grid');
+  const chip = document.createElement('div');
+  chip.className = 'id-chip on';
+  chip.id = 'chip-'+id;
+  chip.dataset.id = id;
+  chip.innerHTML = `0x${id}${info?`<span class="cname">${info.name.split(' ').slice(0,2).join(' ')}</span>`:''}`;
+  if (info) chip.style.borderColor = info.color+'77';
+  chip.onclick = () => toggleId(id, chip);
+  grid.appendChild(chip);
+}
+
+function toggleId(id, chip) {
+  if (!chip) chip = document.getElementById('chip-'+id);
+  if (filteredIds.has(id)) {
+    filteredIds.delete(id);
+    chip?.classList.remove('on');
+    document.getElementById('pivot-row-'+id)?.remove();
+    delete pivotData[id];
+  } else {
+    filteredIds.add(id);
+    chip?.classList.add('on');
+    if (pivotData[id]) renderPivotRow(id, false);
+  }
+}
+
+let allIdsOn = true;
+function toggleAllIds() {
+  allIdsOn = !allIdsOn;
+  for (const id of knownIds) {
+    const chip = document.getElementById('chip-'+id);
+    if (allIdsOn) {
+      filteredIds.add(id);
+      chip?.classList.add('on');
+      if (pivotData[id]) renderPivotRow(id, false);
+    } else {
+      filteredIds.delete(id);
+      chip?.classList.remove('on');
+      document.getElementById('pivot-row-'+id)?.remove();
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DISPLAY OPTIONS
+// ═══════════════════════════════════════════════════════════════
+function toggleOpt(btn) {
+  const key = btn.dataset.opt;
+  opts[key] = !opts[key];
+  btn.classList.toggle('on', opts[key]);
+  // toggle column headers
+  const thMap = {decoded:'th-decoded', freq:'th-freq', age:'th-age', count:'th-count'};
+  if (thMap[key]) {
+    document.getElementById(thMap[key]).style.display = opts[key] ? '' : 'none';
+  }
+  // Re-render all pivot rows
+  for (const id of Object.keys(pivotData)) renderPivotRow(id, false);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// GRAPH
+// ═══════════════════════════════════════════════════════════════
+function pushGraphPoint(frame, noRedraw) {
+  for (const tr of traces) {
+    if (tr.id !== frame.id) continue;
+    const val = evalFormula(tr.formula, frame.bytes);
+    if (val === null || val === undefined) continue;
+    if (!graphHistory[tr.id+tr.formula]) graphHistory[tr.id+tr.formula] = [];
+    const hist = graphHistory[tr.id+tr.formula];
+    hist.push({ ts: frame.ts, val });
+  }
+  if (!noRedraw && !graph_redrawPending) {
+    graph_redrawPending = true;
+    requestAnimationFrame(() => { redrawGraph(); graph_redrawPending = false; });
+  }
+}
+let graph_redrawPending = false;
+
+function setGraphWindow(s) {
+  graphWindow = s;  // -1 = ALL
+  document.querySelectorAll('.gtb').forEach(b => b.classList.remove('on'));
+  event.target.classList.add('on');
+  redrawGraph();
+}
+
+function redrawGraph() {
+  const svg = document.getElementById('graph-svg');
+  const canvas = document.getElementById('graph-canvas');
+  const W = canvas.clientWidth || 800;
+  const H = canvas.clientHeight || 130;
+  if (W===0||H===0) return;
+
+  svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+  svg.innerHTML = '';
+
+  // Grid
+  const grid = (x1,y1,x2,y2) => { const l=document.createElementNS('http://www.w3.org/2000/svg','line'); l.setAttribute('x1',x1);l.setAttribute('y1',y1);l.setAttribute('x2',x2);l.setAttribute('y2',y2); l.setAttribute('stroke','#1e3248');l.setAttribute('stroke-width','1'); svg.appendChild(l); };
+  for (let i=1;i<4;i++) grid(0,H/4*i,W,H/4*i);
+  for (let i=1;i<6;i++) grid(W/6*i,0,W/6*i,H);
+
+  if (traces.length === 0) {
+    const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('x',W/2); t.setAttribute('y',H/2); t.setAttribute('text-anchor','middle');
+    t.setAttribute('fill','#2a4860'); t.setAttribute('font-size','11'); t.setAttribute('font-family','Rajdhani');
+    t.textContent = 'Add traces in the sidebar to see data here';
+    svg.appendChild(t); return;
+  }
+
+  // Collect data bounds across all traces
+  let tDataMin = Infinity, tDataMax = -Infinity;
+  for (const tr of traces) {
+    const hist = graphHistory[tr.id+tr.formula]||[];
+    if (hist.length) {
+      tDataMin = Math.min(tDataMin, hist[0].ts);
+      tDataMax = Math.max(tDataMax, hist[hist.length-1].ts);
+    }
+  }
+  if (tDataMin === Infinity) return;
+
+  // Playhead position
+  const playheadTs = frameBuf[Math.min(dvrIdx, frameBuf.length-1)]?.ts ?? tDataMax;
+
+  // Time window:
+  //   ALL  → full data range (tDataMin … tDataMax)
+  //   else → last N seconds before playhead
+  const tMax = graphWindow === -1 ? tDataMax : playheadTs;
+  const tMin = graphWindow === -1 ? tDataMin : Math.max(tDataMin, playheadTs - graphWindow);
+  const tRange = tMax - tMin || 1;
+
+  const PAD = 12;   // padding for axes
+  const XPAD = 40;  // left padding for Y labels
+  const BPAD = 18;  // bottom padding for X labels
+  const drawH = H - PAD - BPAD;
+  const drawW = W - XPAD - PAD;
+
+  // Helper: SVG element
+  const el = (tag, attrs) => {
+    const e = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (const [k,v] of Object.entries(attrs)) e.setAttribute(k, v);
+    svg.appendChild(e); return e;
+  };
+
+  // X/Y coordinate mappers (set per-trace, shared for X-axis labels)
+  const toX = (ts) => XPAD + ((ts - tMin) / tRange) * drawW;
+  const fmtRel = (ts) => {
+    const rel = ts - (frameBuf[0]?.ts || 0);
+    if (rel < 60)   return `+${rel.toFixed(0)}s`;
+    if (rel < 3600) return `+${Math.floor(rel/60)}m${String(Math.floor(rel%60)).padStart(2,'0')}s`;
+    return `+${Math.floor(rel/3600)}h${String(Math.floor((rel%3600)/60)).padStart(2,'0')}m`;
+  };
+
+  // Horizontal grid lines + Y-axis area background
+  el('rect', { x:XPAD, y:PAD, width:drawW, height:drawH, fill:'rgba(0,0,0,0.15)' });
+
+  for (let i = 0; i <= 4; i++) {
+    const y = PAD + (drawH / 4) * i;
+    el('line', { x1:XPAD, y1:y, x2:XPAD+drawW, y2:y, stroke:'#1e3248', 'stroke-width':'1' });
+  }
+
+  // Vertical grid lines + X-axis labels
+  const xSteps = 6;
+  for (let i = 0; i <= xSteps; i++) {
+    const ts = tMin + (tRange / xSteps) * i;
+    const x  = toX(ts);
+    el('line', { x1:x, y1:PAD, x2:x, y2:PAD+drawH, stroke:'#1e3248', 'stroke-width':'1' });
+    const xt = el('text', {
+      x, y: H - 3,
+      'text-anchor': i===0 ? 'start' : i===xSteps ? 'end' : 'middle',
+      fill:'#2a4860', 'font-size':'8', 'font-family':'JetBrains Mono'
+    });
+    xt.textContent = fmtRel(ts);
+  }
+
+  // Playhead vertical line (right edge)
+  el('line', { x1:XPAD+drawW, y1:PAD, x2:XPAD+drawW, y2:PAD+drawH,
+    stroke:'rgba(0,200,255,0.3)', 'stroke-width':'1', 'stroke-dasharray':'3,3' });
+
+  // Per-trace rendering
+  for (const tr of traces) {
+    const hist = (graphHistory[tr.id+tr.formula]||[]).filter(p => p.ts >= tMin && p.ts <= tMax);
+    if (hist.length < 1) continue;
+
+    let vMin = tr.min !== '' && tr.min !== undefined ? parseFloat(tr.min) : Math.min(...hist.map(p=>p.val));
+    let vMax = tr.max !== '' && tr.max !== undefined ? parseFloat(tr.max) : Math.max(...hist.map(p=>p.val));
+    if (vMin === vMax) { vMin -= 1; vMax += 1; }
+
+    const toY = (v) => PAD + drawH - ((v - vMin) / (vMax - vMin)) * drawH;
+
+    // Line connecting points
+    if (hist.length >= 2) {
+      const pts = hist.map(p => `${toX(p.ts).toFixed(1)},${toY(p.val).toFixed(1)}`).join(' ');
+      el('polyline', { points:pts, fill:'none', stroke:tr.color+'88',
+        'stroke-width':'1', 'stroke-linejoin':'round' });
+    }
+
+    // Dots for each measurement point
+    for (const p of hist) {
+      el('circle', {
+        cx: toX(p.ts).toFixed(1),
+        cy: toY(p.val).toFixed(1),
+        r: '2.5',
+        fill: tr.color,
+        stroke: 'rgba(0,0,0,0.5)',
+        'stroke-width': '0.5'
+      });
+    }
+
+    // Y-axis labels (left side)
+    const labelY = (txt, v, col) => {
+      const t = el('text', {
+        x: XPAD - 3, y: toY(v).toFixed(1),
+        'text-anchor':'end', 'dominant-baseline':'middle',
+        fill: col||'#2a4860', 'font-size':'9', 'font-family':'JetBrains Mono'
+      });
+      t.textContent = txt;
+    };
+    labelY(`${vMax.toFixed(1)}${tr.unit}`, vMax, tr.color+'cc');
+    labelY(`${((vMax+vMin)/2).toFixed(1)}`, (vMax+vMin)/2, '#2a4860');
+    labelY(`${vMin.toFixed(1)}${tr.unit}`, vMin, tr.color+'88');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FORMULA EVALUATION (JS sandbox)
+// ═══════════════════════════════════════════════════════════════
+function evalFormula(formula, bytes) {
+  try {
+    const b = (n, m, endian) => {
+      if (m === undefined) return bytes[n] || 0;
+      const lo = bytes[n]||0, hi = bytes[m]||0;
+      return endian==='be' ? (lo<<8)|hi : (hi<<8)|lo;
+    };
+    const bit  = (byte, n) => (byte >> n) & 1;
+    const bits = (byte, f, t) => (byte >> f) & ((1<<(t-f+1))-1);
+    const clamp = (v,a,z) => Math.max(a, Math.min(z, v));
+    const scale = (v,a,b,c,d) => c + (v-a)/(b-a) * (d-c);
+    // eslint-disable-next-line no-new-func
+    return new Function('b','bit','bits','clamp','scale', `return (${formula});`)(b, bit, bits, clamp, scale);
+  } catch { return null; }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TRACE MODAL
+// ═══════════════════════════════════════════════════════════════
+function openTraceModal(idx) {
+  editingTraceIdx = idx;
+  const tr = idx !== null ? traces[idx] : null;
+  document.getElementById('te-label').value   = tr?.label   || '';
+  document.getElementById('te-id').value      = tr?.id ? '0x'+tr.id : '';
+  document.getElementById('te-formula').value = tr?.formula || '';
+  document.getElementById('te-unit').value    = tr?.unit    || '';
+  document.getElementById('te-min').value     = tr?.min     !== undefined ? tr.min : '';
+  document.getElementById('te-max').value     = tr?.max     !== undefined ? tr.max : '';
+
+  // Colors
+  const colorRow = document.getElementById('te-colors');
+  colorRow.innerHTML = '';
+  GRAPH_COLORS.forEach(c => {
+    const d = document.createElement('div');
+    d.className = 'color-pick' + (c===(tr?.color||GRAPH_COLORS[0])?' selected':'');
+    d.style.background = c;
+    d.dataset.color = c;
+    d.onclick = () => { document.querySelectorAll('.color-pick').forEach(x=>x.classList.remove('selected')); d.classList.add('selected'); };
+    colorRow.appendChild(d);
+  });
+
+  document.getElementById('trace-modal').classList.add('open');
+  previewFormula();
+}
+
+function closeTraceModal() {
+  document.getElementById('trace-modal').classList.remove('open');
+}
+
+function previewFormula() {
+  const idRaw = document.getElementById('te-id').value.trim().replace(/^0x/i,'').toUpperCase().padStart(3,'0');
+  const formula = document.getElementById('te-formula').value.trim();
+  const el = document.getElementById('preview-val');
+  const unit = document.getElementById('te-unit').value;
+  if (!formula) { el.textContent='—'; el.style.color='var(--text3)'; return; }
+  const d = pivotData[idRaw];
+  if (!d) { el.textContent='No data for this ID'; el.style.color='var(--text3)'; return; }
+  const val = evalFormula(formula, d.bytes);
+  if (val === null) { el.textContent='Formula error'; el.style.color='var(--red)'; return; }
+  el.textContent = `${typeof val==='number'?val.toFixed(3):val} ${unit}`;
+  el.style.color = 'var(--green)';
+}
+
+function saveTrace() {
+  const idRaw = document.getElementById('te-id').value.trim().replace(/^0x/i,'').toUpperCase().padStart(3,'0');
+  const formula = document.getElementById('te-formula').value.trim();
+  const label   = document.getElementById('te-label').value.trim() || `0x${idRaw}`;
+  const unit    = document.getElementById('te-unit').value.trim();
+  const min     = document.getElementById('te-min').value.trim();
+  const max     = document.getElementById('te-max').value.trim();
+  const color   = document.querySelector('.color-pick.selected')?.dataset.color || GRAPH_COLORS[0];
+
+  const tr = { id:idRaw, formula, label, unit, min, max, color };
+
+  if (editingTraceIdx !== null) traces[editingTraceIdx] = tr;
+  else traces.push(tr);
+
+  closeTraceModal();
+  renderTraceSidebar();
+  renderGraphPills();
+  // Pre-fill history if we have file data
+  if (source==='file') {
+    graphHistory[tr.id+tr.formula] = [];
+    for (const f of frameBuf) pushGraphPoint(f, true);
+    redrawGraph();
+  }
+}
+
+function renderTraceSidebar() {
+  const list = document.getElementById('trace-list');
+  list.innerHTML = '';
+  traces.forEach((tr, i) => {
+    const item = document.createElement('div');
+    item.className = 'trace-item';
+    item.innerHTML = `
+      <div class="trace-dot" style="background:${tr.color};box-shadow:0 0 5px ${tr.color}55;"></div>
+      <span class="trace-label" onclick="openTraceModal(${i})" style="cursor:pointer;" title="${tr.formula}">${tr.label}</span>
+      <span class="trace-desc">${tr.unit}</span>
+      <span class="trace-remove" onclick="removeTrace(${i})">✕</span>`;
+    list.appendChild(item);
+  });
+}
+
+function renderGraphPills() {
+  const pills = document.getElementById('graph-trace-pills');
+  pills.innerHTML = '';
+  traces.forEach((tr, i) => {
+    const pill = document.createElement('div');
+    pill.style.cssText = `padding:3px 10px;border-radius:12px;font-size:10px;cursor:pointer;background:rgba(0,0,0,0.3);border:1px solid ${tr.color}55;color:${tr.color};`;
+    pill.textContent = tr.label;
+    pill.onclick = () => openTraceModal(i);
+    pills.appendChild(pill);
+  });
+}
+
+function removeTrace(i) {
+  const tr = traces[i];
+  delete graphHistory[tr.id+tr.formula];
+  traces.splice(i, 1);
+  renderTraceSidebar();
+  renderGraphPills();
+  redrawGraph();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// EXPORT
+// ═══════════════════════════════════════════════════════════════
+async function exportLog() {
+  const frames = source==='file' ? fileFrames : await idbGetAll();
+  if (!frames.length) { alert('No data to export'); return; }
+  let txt = '# LIN Bus Analyzer — exported log\n';
+  for (const f of frames) {
+    const status = f.status==='unans' ? 'UNANSWERED' : f.status==='err' ? 'ERROR' : 'OK Classic';
+    txt += `(${f.ts.toFixed(6)}) lin0 ${f.id}#${f.dataHex} # ${status}\n`;
+  }
+  const blob = new Blob([txt], {type:'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `lin_export_${Date.now()}.log`;
+  a.click();
+}
+
+async function clearBuffer() {
+  if (!confirm('Clear all buffered frames?')) return;
+  frameBufClear();
+  fileFrames = [];
+  await idbClear();
+  pivotData = {};
+  graphHistory = {};
+  document.getElementById('pivot-body').innerHTML = '';
+  knownIds.clear(); filteredIds.clear();
+  document.getElementById('id-grid').innerHTML = '';
+  redrawGraph();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CONFIG SAVE / LOAD
+// ═══════════════════════════════════════════════════════════════
+function saveConfig() {
+  const cfg = {
+    version: '0.6.0',
+    savedAt: new Date().toISOString(),
+    traces,
+    graphWindow,
+    displayOpts: { ...opts },
+    annotations,       // ID annotations from ANALYZE tab
+    dashboard: [],     // placeholder for future dashboard widgets
+  };
+  const blob = new Blob([JSON.stringify(cfg, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `caligraph_${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.json`;
+  a.click();
+}
+
+function loadConfig(input) {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = ''; // reset so same file can be loaded again
+  const reader = new FileReader();
+  reader.onload = e => {
+    let cfg;
+    try { cfg = JSON.parse(e.target.result); }
+    catch { alert('Invalid config file — not valid JSON'); return; }
+    applyConfig(cfg);
+  };
+  reader.readAsText(file);
+}
+
+function applyConfig(cfg) {
+  // Traces
+  if (Array.isArray(cfg.traces)) {
+    traces = cfg.traces;
+    // Rebuild graph history from current frameBuf
+    graphHistory = {};
+    for (const f of frameBuf) pushGraphPoint(f, true);
+    renderTraceSidebar();
+    renderGraphPills();
+    redrawGraph();
+  }
+
+  // Graph window
+  if (cfg.graphWindow !== undefined) {
+    graphWindow = cfg.graphWindow;
+    document.querySelectorAll('.gtb').forEach(b => b.classList.remove('on'));
+    // Try to highlight the matching button
+    const labels = { 10:'10s', 30:'30s', 120:'2min', 600:'10min', '-1':'ALL' };
+    const lbl = labels[String(cfg.graphWindow)];
+    if (lbl) {
+      document.querySelectorAll('.gtb').forEach(b => {
+        if (b.textContent.trim() === lbl) b.classList.add('on');
+      });
+    }
+  }
+
+  // Display options
+  if (cfg.displayOpts) {
+    for (const [k, v] of Object.entries(cfg.displayOpts)) {
+      if (k in opts) {
+        opts[k] = v;
+        const btn = document.querySelector(`.opt-btn[data-opt="${k}"]`);
+        if (btn) btn.classList.toggle('on', v);
+      }
+    }
+    // Re-render pivot with new opts
+    for (const id of Object.keys(pivotData)) renderPivotRow(id, false);
+  }
+
+  // Annotations
+  if (cfg.annotations) {
+    annotations = cfg.annotations;
+    refreshAnalyze();
+  }
+  // Future: dashboard …
+
+  console.log('Config loaded:', cfg.version, cfg.savedAt || '');
+}
+
+// Also support drag & drop of .json config onto the dropzone
+const _origDrop = window._caligraph_drop;
+function initConfigDropzone() {
+  const dz = document.getElementById('dropzone');
+  if (!dz) return;
+  dz.addEventListener('drop', e => {
+    // Check if dropped file is JSON — handle as config
+    const file = e.dataTransfer.files[0];
+    if (file && file.name.endsWith('.json')) {
+      e.stopImmediatePropagation();
+      const reader = new FileReader();
+      reader.onload = ev => {
+        try { applyConfig(JSON.parse(ev.target.result)); }
+        catch { alert('Invalid config JSON'); }
+      };
+      reader.readAsText(file);
+    }
+    // .log files handled by existing dropzone listener
+  }, true); // capture phase so it runs first
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// ANALYZE PAGE
+// ═══════════════════════════════════════════════════════════════
+
+// annotations: { [id]: { name, comment, fields:[{bits, byteIdx, label, type, formula, enumMap}] } }
+let annotations = {};
+let azFilter = 'all';
+let azEditingId = null;
+let azBitSelection = {};   // byteIdx → Set of bit indices currently selected in modal
+
+// ── Statistics per ID (computed from frameBuf) ─────────────────
+function computeIdStats() {
+  const stats = {}; // id → { count, byteStats:[{min,max,vals:Set,hist:[]}] }
+  for (const f of frameBuf) {
+    if (!stats[f.id]) stats[f.id] = { count:0, byteStats:[] };
+    const s = stats[f.id];
+    s.count++;
+    f.bytes.forEach((b, i) => {
+      if (!s.byteStats[i]) s.byteStats[i] = { min:255, max:0, vals:new Set(), sum:0 };
+      const bs = s.byteStats[i];
+      if (b < bs.min) bs.min = b;
+      if (b > bs.max) bs.max = b;
+      bs.vals.add(b);
+      bs.sum += b;
+    });
+  }
+  return stats;
+}
+
+// ── Filter ────────────────────────────────────────────────────
+function setAzFilter(f) {
+  azFilter = f;
+  ['all','unknown','known'].forEach(x => {
+    document.getElementById('azf-'+x)?.classList.toggle('on', x===f);
+  });
+  refreshAnalyze();
+}
+
+// ── Main render ───────────────────────────────────────────────
+function refreshAnalyze() {
+  const stats = computeIdStats();
+  const ids = Object.keys(stats).sort();
+  const list = document.getElementById('az-list');
+  if (!list) return;
+
+  // Stats bar
+  const totalIds   = ids.length;
+  const knownCount = ids.filter(id => annotations[id]?.name).length;
+  document.getElementById('az-stat-total').textContent  = `${totalIds} IDs`;
+  document.getElementById('az-stat-known').textContent  = `${knownCount} annotated`;
+  document.getElementById('az-stat-frames').textContent = `${frameBuf.length.toLocaleString()} frames`;
+
+  // Filter
+  const visIds = ids.filter(id => {
+    const hasAnnotation = !!(annotations[id]?.name || annotations[id]?.fields?.length);
+    if (azFilter === 'unknown')  return !hasAnnotation;
+    if (azFilter === 'known')    return hasAnnotation;
+    return true;
+  });
+
+  list.innerHTML = '';
+  for (const id of visIds) {
+    list.appendChild(buildAzRow(id, stats[id]));
+  }
+}
+
+// ── Build one ID row ──────────────────────────────────────────
+function buildAzRow(id, stat) {
+  const ann   = annotations[id] || {};
+  const info  = KNOWN[id];
+  const color = ann.color || info?.color || 'var(--text2)';
+  const hasAnn = !!(ann.name || ann.fields?.length);
+
+  const row = document.createElement('div');
+  row.className = 'az-row' + (hasAnn ? ' annotated' : '');
+  row.id = 'az-row-' + id;
+
+  // ── Header ──
+  const hdr = document.createElement('div');
+  hdr.className = 'az-row-header';
+  hdr.onclick = (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+    row.classList.toggle('expanded');
+  };
+
+  // 1. ID cell
+  const displayName = ann.name || info?.name || '';
+  hdr.innerHTML += `
+    <div class="az-col-id">
+      <div class="az-id-hex" style="color:${color}">0x${id}</div>
+      <div class="az-id-name" style="color:${color}">${displayName}</div>
+    </div>`;
+
+  // 2. Byte histograms
+  let bytesHtml = '<div class="az-col-bytes">';
+  stat.byteStats.forEach((bs, i) => {
+    const fieldAnn = ann.fields?.find(f => f.byteIdx === i);
+    const isConst  = bs.min === bs.max;
+    const rangeStr = isConst
+      ? bs.min.toString(16).toUpperCase().padStart(2,'0')
+      : `${bs.min.toString(16).toUpperCase().padStart(2,'0')}–${bs.max.toString(16).toUpperCase().padStart(2,'0')}`;
+    const uniqueStr = isConst ? 'const' : `${bs.vals.size} vals`;
+    const histPct   = isConst ? 100 : 60;
+    bytesHtml += `
+      <div class="az-byte-box${fieldAnn?' annotated':''}">
+        <div class="az-byte-idx">B${i}</div>
+        <div class="az-byte-hist" title="B${i}: ${rangeStr}">
+          <div class="az-hist-bar" style="height:${histPct}%;background:${isConst?'var(--text3)':color};"></div>
+        </div>
+        <div class="az-byte-range">${rangeStr}</div>
+        <div class="az-byte-unique">${uniqueStr}</div>
+      </div>`;
+  });
+  bytesHtml += '</div>';
+  hdr.innerHTML += bytesHtml;
+
+  // 3. Stats cell
+  hdr.innerHTML += `
+    <div class="az-col-label-stats">
+      <div class="az-inline-stats">
+        <span class="az-stat-row">Frames: <span>${stat.count.toLocaleString()}</span></span>
+        <span class="az-stat-row">Bytes: <span>${stat.byteStats.length}</span></span>
+        <span class="az-stat-row">Fields: <span>${ann.fields?.length||0}</span></span>
+      </div>
+    </div>`;
+
+  // 4. Edit + Chevron
+  hdr.innerHTML += `
+    <div class="az-col-actions">
+      <div class="az-edit-btn" onclick="event.stopPropagation();openAzModal('${id}')">EDIT</div>
+    </div>
+    <div class="az-chevron">▶</div>`;
+
+  row.appendChild(hdr);
+
+  // ── Detail panel (expanded) ──
+  const detail = document.createElement('div');
+  detail.className = 'az-row-detail';
+  detail.id = 'az-detail-' + id;
+  detail.innerHTML = buildDetailHtml(id, stat);
+  row.appendChild(detail);
+
+  return row;
+}
+
+function buildDetailHtml(id, stat) {
+  const ann = annotations[id] || {};
+  if (!ann.fields?.length) {
+    return `<div style="color:var(--text3);font-size:11px;">No fields defined yet — click EDIT to annotate bytes and bits.</div>`;
+  }
+  let html = `<table class="az-fields-table">
+    <thead><tr><th>BITS</th><th>LABEL</th><th>TYPE</th><th>FORMULA</th><th>SAMPLE</th></tr></thead><tbody>`;
+  for (const f of ann.fields) {
+    const bitStr = f.bits || `B${f.byteIdx}[7:0]`;
+    const lastFrame = frameBuf[frameBuf.length-1];
+    let sample = '—';
+    if (lastFrame && f.formula) {
+      const v = evalFormula(f.formula, lastFrame.bytes);
+      sample = v !== null ? String(v) : 'err';
+    }
+    html += `<tr>
+      <td style="color:var(--accent);font-family:var(--mono)">${bitStr}</td>
+      <td style="color:var(--green)">${f.label||''}</td>
+      <td style="color:var(--text2)">${f.type||''}</td>
+      <td style="color:var(--yellow);font-family:var(--mono)">${f.formula||''}</td>
+      <td style="color:var(--text)">${sample}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  if (ann.comment) html += `<div style="margin-top:8px;font-size:11px;color:var(--text2);">💬 ${ann.comment}</div>`;
+  return html;
+}
+
+// ── Name change (inline) ──────────────────────────────────────
+function onAzNameChange(id, val) {
+  if (!annotations[id]) annotations[id] = { fields:[] };
+  annotations[id].name = val.trim();
+  // Update row styling
+  const row = document.getElementById('az-row-'+id);
+  if (row) row.classList.toggle('annotated', !!(val.trim() || annotations[id].fields?.length));
+  refreshAnalyzeStats();
+}
+
+function refreshAnalyzeStats() {
+  const stats = computeIdStats();
+  const ids = Object.keys(stats);
+  const knownCount = ids.filter(id => annotations[id]?.name || annotations[id]?.fields?.length).length;
+  document.getElementById('az-stat-known').textContent = `${knownCount} annotated`;
+}
+
+// ── Annotation Modal ─────────────────────────────────────────
+function openAzModal(id) {
+  azEditingId = id;
+  azBitSelection = {};
+  document.getElementById('az-modal-id').textContent = `0x${id}`;
+  document.getElementById('az-modal').classList.add('open');
+  renderAzModal(id);
+}
+
+function closeAzModal() {
+  document.getElementById('az-modal').classList.remove('open');
+  azEditingId = null;
+}
+
+function renderAzModal(id) {
+  const ann  = annotations[id] || { fields:[] };
+  const stat = computeIdStats()[id];
+  if (!stat) { document.getElementById('az-modal-body').innerHTML = '<div>No data for this ID</div>'; return; }
+
+  // Get last frame for bit preview
+  const lastFrame = frameBuf.filter(f=>f.id===id).slice(-1)[0];
+  const bytes = lastFrame?.bytes || Array(stat.byteStats.length).fill(0);
+
+  let html = '';
+
+  // ── Label field ──
+  html += `
+    <div class="modal-row">
+      <span class="modal-label">Label</span>
+      <input class="modal-input" id="az-label" value="${ann.name||''}"
+        placeholder="e.g. Battery Sensor, Rain Sensor…"
+        style="color:var(--green);font-weight:600;">
+    </div>`;
+
+  // ── Comment + Color row ──
+  const currentColor = ann.color || KNOWN[id]?.color || GRAPH_COLORS[0];
+  const colorSwatches = [...GRAPH_COLORS, '#ff3355','#ffffff','#aaaaaa'].map(c => `
+    <div class="color-pick${c===currentColor?' selected':''}"
+         style="background:${c};width:20px;height:20px;"
+         data-color="${c}" onclick="selectAzColor('${id}','${c}',this)"></div>`).join('');
+
+  html += `
+    <div class="modal-row" style="align-items:flex-start;gap:16px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:180px;">
+        <div style="font-size:9px;color:var(--text3);letter-spacing:2px;font-family:var(--display);margin-bottom:5px;">COMMENT</div>
+        <input class="modal-input" id="az-comment" value="${ann.comment||''}" placeholder="General notes about this ID…">
+      </div>
+      <div>
+        <div style="font-size:9px;color:var(--text3);letter-spacing:2px;font-family:var(--display);margin-bottom:5px;">COLOR</div>
+        <div class="color-row" id="az-color-row" style="flex-wrap:wrap;gap:5px;max-width:200px;">${colorSwatches}</div>
+      </div>
+    </div>`;
+
+  // ── Bit map per byte ──
+  html += `<div style="font-family:var(--display);font-size:10px;letter-spacing:2px;color:var(--text3);margin-bottom:4px;">BIT MAP — click bits to select, then define field below</div>`;
+  html += `<div class="bit-map-wrap" id="az-bitmap">`;
+
+  for (let bi = 0; bi < bytes.length; bi++) {
+    const bval = bytes[bi];
+    html += `<div class="bit-map-row">
+      <div class="bit-map-label">B${bi} = ${bval.toString(16).toUpperCase().padStart(2,'0')}</div>
+      <div class="bit-cells">`;
+    for (let bit = 7; bit >= 0; bit--) {
+      const bv = (bval >> bit) & 1;
+      // check if this bit is in an existing field
+      const inField = ann.fields?.some(f => f.byteIdx===bi && f.bitHigh>=bit && f.bitLow<=bit);
+      html += `<div class="bit-cell bit-val-${bv}${inField?' in-group':''}"
+        id="az-bit-${bi}-${bit}" data-byte="${bi}" data-bit="${bit}"
+        onclick="toggleAzBit(${bi},${bit})" title="B${bi}[${bit}]=${bv}">${bit}</div>`;
+    }
+    html += `</div></div>`;
+  }
+  html += `</div>`;
+
+  // ── Add field from selection ──
+  html += `
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <span style="font-size:10px;color:var(--text3);">Selected:</span>
+      <span id="az-sel-label" style="font-size:11px;color:var(--accent);font-family:var(--mono);">none</span>
+      <button class="btn sm" onclick="addAzFieldFromSelection()">＋ Add Field</button>
+    </div>`;
+
+  // ── Existing fields ──
+  html += `<div>
+    <div style="font-family:var(--display);font-size:10px;letter-spacing:2px;color:var(--text3);margin-bottom:6px;">DEFINED FIELDS</div>
+    <table class="az-fields-table" id="az-fields-tbl">
+      <thead><tr><th>BITS</th><th>LABEL</th><th>TYPE</th><th>FORMULA</th><th></th></tr></thead>
+      <tbody id="az-fields-tbody"></tbody>
+    </table>
+    <div id="az-no-fields" style="font-size:11px;color:var(--text3);padding:8px 0;${ann.fields?.length?'display:none':''}">No fields yet — select bits above and click + Add Field</div>
+  </div>`;
+
+  document.getElementById('az-modal-body').innerHTML = html;
+  renderAzFields(id);
+}
+
+function toggleAzBit(byteIdx, bit) {
+  const key = `${byteIdx}`;
+  if (!azBitSelection[key]) azBitSelection[key] = new Set();
+  const s = azBitSelection[key];
+  // Clear other bytes' selection
+  for (const k of Object.keys(azBitSelection)) {
+    if (k !== key) {
+      azBitSelection[k].forEach(b => {
+        document.getElementById(`az-bit-${k}-${b}`)?.classList.remove('selected');
+      });
+      azBitSelection[k].clear();
+    }
+  }
+  if (s.has(bit)) { s.delete(bit); document.getElementById(`az-bit-${byteIdx}-${bit}`)?.classList.remove('selected'); }
+  else            { s.add(bit);    document.getElementById(`az-bit-${byteIdx}-${bit}`)?.classList.add('selected'); }
+  updateAzSelLabel(byteIdx);
+}
+
+function updateAzSelLabel(byteIdx) {
+  const s = azBitSelection[byteIdx];
+  const lbl = document.getElementById('az-sel-label');
+  if (!s || s.size === 0) { lbl.textContent = 'none'; return; }
+  const bits = [...s].sort((a,b)=>b-a);
+  const hi = bits[0], lo = bits[bits.length-1];
+  lbl.textContent = `B${byteIdx}[${hi}:${lo}]`;
+}
+
+function addAzFieldFromSelection() {
+  const byteIdx = Object.keys(azBitSelection).find(k => azBitSelection[k].size > 0);
+  if (byteIdx === undefined) { alert('Select at least one bit first'); return; }
+  const bits = [...azBitSelection[byteIdx]].sort((a,b)=>b-a);
+  const hi = bits[0], lo = bits[bits.length-1];
+  const id = azEditingId;
+  if (!annotations[id]) annotations[id] = { fields:[] };
+  // Save unsaved comment before re-render
+  const commentEl = document.getElementById('az-comment');
+  if (commentEl) annotations[id].comment = commentEl.value;
+  // preserve selected color
+  const selColor = document.querySelector('#az-color-row .color-pick.selected')?.dataset.color;
+  if (selColor) annotations[id].color = selColor;
+  annotations[id].fields.push({
+    byteIdx: parseInt(byteIdx), bitHigh: hi, bitLow: lo,
+    bits: `B${byteIdx}[${hi}:${lo}]`,
+    label: '', type: 'uint', formula: '', enumMap: {}
+  });
+  // Clear selection
+  azBitSelection = {};
+  renderAzModal(id);
+}
+
+function renderAzFields(id) {
+  const ann = annotations[id] || { fields:[] };
+  const tbody = document.getElementById('az-fields-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  (ann.fields||[]).forEach((f, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="color:var(--accent);font-family:var(--mono);white-space:nowrap">${f.bits}</td>
+      <td><input class="az-field-input" value="${f.label||''}" placeholder="Label"
+            onchange="updateAzField('${id}',${i},'label',this.value)"></td>
+      <td><select class="az-field-sel" onchange="updateAzField('${id}',${i},'type',this.value)">
+            ${['uint','bool','enum','formula'].map(t=>`<option${f.type===t?' selected':''}>${t}</option>`).join('')}
+          </select></td>
+      <td><input class="az-field-input" value="${f.formula||''}" placeholder="b(${f.byteIdx})…"
+            style="color:var(--yellow)" onchange="updateAzField('${id}',${i},'formula',this.value)"></td>
+      <td><span class="az-del-btn" onclick="deleteAzField('${id}',${i})">✕</span></td>`;
+    tbody.appendChild(tr);
+  });
+  const noFields = document.getElementById('az-no-fields');
+  if (noFields) noFields.style.display = ann.fields?.length ? 'none' : '';
+}
+
+function updateAzField(id, idx, key, val) {
+  if (annotations[id]?.fields?.[idx]) annotations[id].fields[idx][key] = val;
+}
+
+function deleteAzField(id, idx) {
+  if (annotations[id]?.fields) {
+    annotations[id].fields.splice(idx, 1);
+    renderAzFields(id);
+  }
+}
+
+function selectAzColor(id, color, el) {
+  document.querySelectorAll('#az-color-row .color-pick').forEach(x => x.classList.remove('selected'));
+  el.classList.add('selected');
+  if (!annotations[id]) annotations[id] = { fields:[] };
+  annotations[id].color = color;
+}
+
+function saveAzAnnotation() {
+  const id = azEditingId;
+  if (!annotations[id]) annotations[id] = { fields:[] };
+  annotations[id].name    = document.getElementById('az-label')?.value?.trim() || annotations[id].name || '';
+  annotations[id].comment = document.getElementById('az-comment')?.value?.trim() || '';
+  const savedColor = document.querySelector('#az-color-row .color-pick.selected')?.dataset.color;
+  if (savedColor) annotations[id].color = savedColor;
+  closeAzModal();
+  refreshAnalyze();
+  // update name under ID in row immediately
+  const nameEl = document.querySelector(`#az-row-${id} .az-id-name`);
+  if (nameEl) nameEl.textContent = annotations[id].name || KNOWN[id]?.name || '';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CONN UI
+// ═══════════════════════════════════════════════════════════════
+function setConnUI(state, msg) {
+  const dot  = document.getElementById('sb-dot');
+  const text = document.getElementById('sb-conn-text');
+  const hdot = document.getElementById('hdr-dot');
+  const hlbl = document.getElementById('hdr-conn-label');
+  const states = {
+    live:       { cls:'live',   color:'' },
+    connecting: { cls:'paused', color:'' },
+    error:      { cls:'off',    color:'' },
+    off:        { cls:'off',    color:'' },
+  };
+  const s = states[state] || states.off;
+  dot.className  = `dot ${s.cls}`;
+  hdot.className = `dot ${s.cls}`;
+  text.textContent = msg;
+  hlbl.textContent = msg;
+  updateModeBadge();
+}
+
+function setFileStatusUI(state, msg) {
+  const dot  = document.getElementById('file-dot');
+  const text = document.getElementById('file-status-text');
+  const hdot = document.getElementById('hdr-dot');
+  const hlbl = document.getElementById('hdr-conn-label');
+  const cls  = state==='file' ? 'file' : state==='loading' ? 'paused' : 'off';
+  dot.className  = `dot ${cls}`;
+  hdot.className = `dot ${cls}`;
+  text.textContent = msg;
+  hlbl.textContent = msg;
+  updateModeBadge();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PAGE SWITCHING
+// ═══════════════════════════════════════════════════════════════
+function showPage(p) {
+  document.querySelectorAll('.page').forEach(x => x.classList.remove('active'));
+  document.getElementById('page-'+p).classList.add('active');
+  document.getElementById('tab-monitor').className = 'mode-tab' + (p==='monitor' ? ' active-monitor':'');
+  document.getElementById('tab-analyze').className = 'mode-tab' + (p==='analyze' ? ' active-analyze':'');
+  document.getElementById('tab-sim').className     = 'mode-tab' + (p==='sim'     ? ' active-sim':'');
+  if (p==='analyze') refreshAnalyze();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════
+(async () => {
+  await idbOpen();
+  idbCount = await idbCount_();
+  idbWriteSeq = idbCount; // approximate; for exact we'd query max key
+  updateIdbUI();
+  updateModeBadge();
+  redrawGraph();
+
+  // Resize → redraw graph
+  window.addEventListener('resize', redrawGraph);
+
+  // Age ticker — update age column every second for WS mode
+  setInterval(() => {
+    if (source==='ws') {
+      for (const id of Object.keys(pivotData)) renderPivotRow(id, false);
+    }
+  }, 1000);
+
+  initDropzone();
+  initConfigDropzone();
+  console.log('LIN Bus Analyzer ready. IDB frames:', idbCount);
+})();
+</script>
+</body>
+</html>
