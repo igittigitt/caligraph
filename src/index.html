@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CaLiGRAPH v1.0.6</title>
+<title>CaLiGRAPH v1.0.7</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&display=swap');
 
@@ -643,7 +643,7 @@ body::after {
 
 <!-- HEADER -->
 <header class="app-header">
-  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.0.6</div></div>
+  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.0.7</div></div>
   <div class="mode-tabs">
     <div class="mode-tab active-monitor" id="tab-monitor" onclick="showPage('monitor')">
       <span>📡</span> Monitor
@@ -1964,7 +1964,10 @@ function addIdChip(id) {
   chip.innerHTML = `0x${id}${info?`<span class="cname">${info.name.split(' ').slice(0,2).join(' ')}</span>`:''}`;
   if (info) chip.style.borderColor = info.color+'77';
   chip.onclick = () => toggleId(id, chip);
-  grid.appendChild(chip);
+  // Insert sorted by numeric ID value
+  const newVal = parseInt(id, 16);
+  const sibling = [...grid.children].find(c => parseInt(c.dataset.id, 16) > newVal);
+  sibling ? grid.insertBefore(chip, sibling) : grid.appendChild(chip);
 }
 
 function toggleId(id, chip) {
