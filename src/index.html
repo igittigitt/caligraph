@@ -465,6 +465,20 @@ body::after {
 .az-byte-box.annotated .az-byte-hist { border:1px solid rgba(0,255,136,0.4); }
 .az-byte-box.annotated .az-byte-range { color:var(--green); }
 
+.az-stability-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-top: 4px;
+  font-family: var(--mono);
+}
+.az-stability-badge.static  { background: rgba(255,255,255,0.06); color: var(--text3); }
+.az-stability-badge.dynamic { background: rgba(0,255,136,0.15);   color: var(--green); }
+.az-stability-badge.partial { background: rgba(255,200,0,0.15);   color: var(--yellow); }
+
 /* az-col-stats merged into az-col-label-stats */
 .az-stat-row { font-size:10px; color:var(--text3); }
 .az-stat-row span { color:var(--text2); }
@@ -2207,7 +2221,7 @@ function buildAzRow(id, stat) {
       ? bs.min.toString(16).toUpperCase().padStart(2,'0')
       : `${bs.min.toString(16).toUpperCase().padStart(2,'0')}–${bs.max.toString(16).toUpperCase().padStart(2,'0')}`;
     const uniqueStr = isConst ? 'const' : `${bs.vals.size} vals`;
-    const histPct   = isConst ? 100 : 60;
+    const histPct   = isConst ? 0 : Math.max(15, Math.round(((bs.max - bs.min) / 255) * 100));
     bytesHtml += `
       <div class="az-byte-box${fieldAnn?' annotated':''}">
         <div class="az-byte-idx">B${i}</div>
@@ -2222,6 +2236,17 @@ function buildAzRow(id, stat) {
   hdr.innerHTML += bytesHtml;
 
   // 3. Stats cell
+  const dynBytes   = stat.byteStats.filter(bs => bs.min !== bs.max).length;
+  const totalBytes = stat.byteStats.length;
+  let stabilityClass, stabilityLabel;
+  if (dynBytes === 0) {
+    stabilityClass = 'static';  stabilityLabel = 'STATIC';
+  } else if (dynBytes === totalBytes) {
+    stabilityClass = 'dynamic'; stabilityLabel = 'DYNAMIC';
+  } else {
+    stabilityClass = 'partial'; stabilityLabel = `${dynBytes}/${totalBytes} vary`;
+  }
+
   hdr.innerHTML += `
     <div class="az-col-label-stats">
       <div class="az-inline-stats">
@@ -2229,7 +2254,14 @@ function buildAzRow(id, stat) {
         <span class="az-stat-row">Bytes: <span>${stat.byteStats.length}</span></span>
         <span class="az-stat-row">Fields: <span>${ann.fields?.length||0}</span></span>
       </div>
+      <span class="az-stability-badge ${stabilityClass}">${stabilityLabel}</span>
     </div>`;
+
+  // Left-border colour by stability
+  const borderColor = stabilityClass === 'dynamic' ? 'var(--green)'
+                    : stabilityClass === 'partial'  ? 'var(--yellow)'
+                    : 'transparent';
+  hdr.style.borderLeft = `2px solid ${borderColor}`;
 
   // 4. Edit + Chevron
   hdr.innerHTML += `
