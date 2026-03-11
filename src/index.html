@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CaLiGRAPH v1.0.4</title>
+<title>CaLiGRAPH v1.0.5</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&display=swap');
 
@@ -646,7 +646,7 @@ body::after {
 
 <!-- HEADER -->
 <header class="app-header">
-  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.0.4</div></div>
+  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.0.5</div></div>
   <div class="mode-tabs">
     <div class="mode-tab active-monitor" id="tab-monitor" onclick="showPage('monitor')">
       <span>📡</span> Monitor
@@ -874,6 +874,7 @@ body::after {
           <div class="tb play-btn" id="btn-play" onclick="togglePlay()" title="Play/Pause">⏸</div>
           <div class="tb" onclick="stepFrames(1)"   title="+1 frame">▶</div>
           <div class="tb" onclick="stepFrames(100)" title="+100 frames">⏭</div>
+          <div class="tb" id="btn-loop" onclick="toggleLoop()" title="Loop">⟳</div>
         </div>
 
         <select class="speed-sel" id="speed-sel" onchange="setSpeed(this.value)">
@@ -1656,6 +1657,7 @@ const FRAME_BUF_MAX = 200000;
 let dvrIdx = 0;             // current playhead index into frameBuf
 let dvrReplayTimer = null;  // setInterval handle for replay
 let dvrReplayWallStart = 0; // wall clock reference for replay speed
+let loopEnabled = false;    // loop playback
 
 function frameBufPush(frame) {
   frameBuf.push(frame);
@@ -1746,6 +1748,12 @@ function dvrReplayTick() {
       isLive = true;
       clearInterval(dvrReplayTimer);
       dvrReplayTimer = null;
+    } else if (loopEnabled) {
+      // restart from the beginning
+      dvrIdx = 0;
+      rebuildPivotToIndex(0);
+      dvrReplayWallStart = performance.now();
+      return;
     } else {
       isPlaying = false;
       clearInterval(dvrReplayTimer);
@@ -1758,6 +1766,12 @@ function dvrReplayTick() {
   }
   updateTransportClock(frameBuf[dvrIdx - 1]);
   updateScrub();
+}
+
+function toggleLoop() {
+  loopEnabled = !loopEnabled;
+  const btn = document.getElementById('btn-loop');
+  if (btn) btn.classList.toggle('active', loopEnabled);
 }
 
 function setSpeed(v) {
