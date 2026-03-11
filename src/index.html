@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CaLiGRAPH v1.0.2</title>
+<title>CaLiGRAPH v1.0.4</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&display=swap');
 
@@ -95,7 +95,8 @@ body::after {
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
 /* ─── LAYOUT ─── */
-.app-body { display:flex; flex-direction:column; height:calc(100vh - 52px); }
+.app-body { display:flex; flex-direction:row; height:calc(100vh - 52px); }
+.page-content { flex:1; display:flex; flex-direction:column; overflow:hidden; min-width:0; }
 .page { display:none; flex:1; flex-direction:column; overflow:hidden; }
 #page-analyze { overflow:hidden; }
 .page.active { display:flex; }
@@ -104,6 +105,21 @@ body::after {
    MONITOR PAGE
 ════════════════════════════════════════════ */
 .monitor-layout { display:flex; flex:1; overflow:hidden; }
+
+/* ─── LOG FILE BADGES ─── */
+#log-list { display:flex; flex-direction:column; gap:4px; margin-top:8px; }
+.log-badge {
+  display:flex; align-items:center; gap:6px; padding:5px 8px;
+  background:var(--panel); border:1px solid var(--border2); border-radius:4px;
+  cursor:pointer; font-size:11px; transition:all 0.15s; user-select:none;
+}
+.log-badge:hover { border-color:var(--text2); }
+.log-badge.active { border-color:var(--orange); background:rgba(255,140,0,0.1); }
+.log-badge-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text3); font-size:10px; }
+.log-badge.active .log-badge-name { color:var(--orange); font-weight:600; }
+.log-badge-count { font-size:9px; color:var(--text3); white-space:nowrap; flex-shrink:0; }
+.log-badge-remove { color:var(--text3); cursor:pointer; padding:0 3px; font-size:11px; flex-shrink:0; }
+.log-badge-remove:hover { color:var(--red); }
 
 /* ─── LEFT SIDEBAR ─── */
 .mon-sidebar {
@@ -630,7 +646,7 @@ body::after {
 
 <!-- HEADER -->
 <header class="app-header">
-  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.0.2</div></div>
+  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.0.4</div></div>
   <div class="mode-tabs">
     <div class="mode-tab active-monitor" id="tab-monitor" onclick="showPage('monitor')">
       <span>📡</span> Monitor
@@ -677,11 +693,7 @@ body::after {
 
 <div class="app-body">
 
-<!-- ═══════════════════════ MONITOR PAGE ═══════════════════════ -->
-<div class="page active" id="page-monitor">
-<div class="monitor-layout">
-
-  <!-- LEFT SIDEBAR -->
+  <!-- LEFT SIDEBAR (shared across Monitor & Analyze) -->
   <div class="mon-sidebar">
 
     <!-- Source -->
@@ -780,18 +792,13 @@ body::after {
           <div id="dz-icon">📂</div>
           <div id="dz-label">Drop .log / .trc file here</div>
           <div id="dz-sub">or click to browse</div>
-          <input type="file" id="file-input" accept=".log,.txt,.trc" style="display:none" onchange="loadFile(this)">
+          <input type="file" id="file-input" accept=".log,.txt,.trc" multiple style="display:none" onchange="loadFile(this)">
         </div>
         <div class="conn-status" style="margin-top:6px;">
           <div class="dot off" id="file-dot"></div>
           <span id="file-status-text">No file loaded</span>
         </div>
-      </div>
-      <!-- File info bar (File mode only) -->
-      <div class="idb-bar" id="idb-bar-file" style="display:none;">
-        <span class="idb-label" id="file-info-name" style="flex:1;color:var(--orange);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">—</span>
-        <span class="idb-val" id="file-info-frames">0 frames</span>
-        <button class="btn sm red" onclick="unloadFile()" title="Unload file">✕</button>
+        <div id="log-list"></div>
       </div>
     </div>
 
@@ -846,6 +853,12 @@ body::after {
     </div>
 
   </div><!-- /sidebar -->
+
+  <!-- PAGE CONTENT -->
+  <div class="page-content">
+
+<!-- ═══════════════════════ MONITOR PAGE ═══════════════════════ -->
+<div class="page active" id="page-monitor">
 
   <!-- MAIN -->
   <div class="mon-main">
@@ -933,7 +946,6 @@ body::after {
     </div>
 
   </div><!-- /mon-main -->
-</div><!-- /monitor-layout -->
 </div><!-- /page-monitor -->
 
 <!-- ═══════════════════════ ANALYZE PAGE ═══════════════════════ -->
@@ -989,6 +1001,7 @@ body::after {
   </div>
 </div>
 
+  </div><!-- /page-content -->
 </div><!-- /app-body -->
 
 <!-- TRACE EDITOR MODAL -->
@@ -1248,6 +1261,10 @@ const GRAPH_COLORS = ['#00ff88','#ffd200','#00c8ff','#ff8c00','#b060ff','#ff3355
 
 let editingTraceIdx = null;
 
+// ─── MULTI-LOG STATE ───
+let logs = [];          // [{id, name, fileSize, frameCount, frames, frameBuf, dvrIdx, isPlaying, isLive, pivotData, graphHistory, filteredIds, knownIds}]
+let activeLogIdx = -1;  // index into logs[]
+
 // ═══════════════════════════════════════════════════════════════
 // SOURCE SWITCHING
 // ═══════════════════════════════════════════════════════════════
@@ -1257,7 +1274,6 @@ function setSource(s) {
   document.getElementById('src-file').classList.toggle('active', s==='file');
   document.getElementById('ws-controls').style.display   = s==='ws'   ? '' : 'none';
   document.getElementById('file-controls').style.display = s==='file' ? '' : 'none';
-  document.getElementById('idb-bar-file').style.display  = s==='file' ? '' : 'none';
   if (s==='ws' && ws) { /* keep ws */ }
 }
 
@@ -1300,16 +1316,9 @@ function toggleDebug() {
 // ═══════════════════════════════════════════════════════════════
 
 async function unloadFile() {
-  if (!await dlgConfirm('Aktuelles Logfile entladen und Buffer leeren?', 'Datei entladen')) return;
-  clearBuffer();
-  document.getElementById('file-info-name').textContent = '—';
-  document.getElementById('file-info-frames').textContent = '0 frames';
-  const dz = document.getElementById('dropzone');
-  dz.classList.remove('has-file');
-  document.getElementById('dz-icon').textContent = '📂';
-  document.getElementById('dz-label').textContent = 'Drop .log file here';
-  document.getElementById('dz-sub').textContent = 'or click to browse';
-  setFileStatusUI('off', 'No file loaded');
+  if (activeLogIdx < 0) return;
+  if (!await dlgConfirm('Aktuelles Logfile entladen?', 'Datei entladen')) return;
+  removeLog(activeLogIdx);
 }
 function wsToggle() {
   if (wsConnected) wsDisconnect();
@@ -1416,51 +1425,73 @@ function wsConnect() {
 // ═══════════════════════════════════════════════════════════════
 // FILE LOADING
 // ═══════════════════════════════════════════════════════════════
-function loadFile(input) {
-  const file = input.files[0];
-  if (!file) return;
-  handleFileObject(file);
+async function loadFile(input) {
+  for (const file of input.files) {
+    await handleFileObject(file);
+  }
+  input.value = '';
 }
 
 async function handleFileObject(file) {
-  setFileStatusUI('loading', `Loading ${file.name}…`);
-  document.getElementById('file-info-name').textContent = file.name;
-  // update dropzone appearance
+  clearInterval(dvrReplayTimer); dvrReplayTimer = null;
+
+  // Save state of currently active log before switching
+  if (activeLogIdx >= 0 && logs.length > 0) saveActiveLogState();
+
+  // Create new log entry
+  const newLog = {
+    id: Date.now(), name: file.name, fileSize: file.size, frameCount: 0,
+    frames: [], frameBuf: [], dvrIdx: 0, isPlaying: false, isLive: false,
+    pivotData: {}, graphHistory: {}, filteredIds: [], knownIds: [],
+  };
+  logs.push(newLog);
+  activeLogIdx = logs.length - 1;
+
+  // Reset globals for fresh load
+  fileFrames = [];
+  frameBufClear();
+  pivotData = {}; graphHistory = {};
+  filteredIds = new Set(); knownIds = new Set();
+  document.getElementById('id-grid').innerHTML = '';
+  document.getElementById('pivot-body').innerHTML = '';
+
+  // Update dropzone (keep default text, just mark as loaded)
   const dz = document.getElementById('dropzone');
   dz.classList.add('has-file');
-  document.getElementById('dz-icon').textContent = '📄';
-  document.getElementById('dz-label').textContent = file.name;
-  document.getElementById('dz-sub').textContent = (file.size/1024).toFixed(1) + ' KB — click to replace';
-  const reader = new FileReader();
-  reader.onload = async e => {
-    const lines = e.target.result.split('\n');
-    frameBufClear();
-    await idbClear();
-    fileFrames = [];
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('Time') || trimmed.startsWith(';')) continue;
-      const f = parseLine(trimmed);
-      if (f) { fileFrames.push(f); frameBufPush(f); addIdChip(f.id); }
-    }
-    if (frameBuf.length === 0) { setFileStatusUI('error','No valid frames found'); return; }
-    setFileStatusUI('file', `${frameBuf.length.toLocaleString()} frames loaded`);
-    document.getElementById('file-info-frames').textContent = frameBuf.length.toLocaleString() + ' frames';
-    // also write to IDB for export
-    for (const f of fileFrames) await idbPut({...f});
-    liveSeq = idbWriteSeq - 1;
-    dvrIdx = 0;
-    isLive = false;
-    isPlaying = false;
-    clearInterval(dvrReplayTimer); dvrReplayTimer = null;
-    // Build pivot and graph for frame 0 (show initial state, don't auto-play)
-    rebuildPivotToIndex(0);
-    updatePlayBtn();
-    updateScrub();
-    updateModeBadge();
-    updatePlayheadDisplay(frameBuf[0]);
-  };
-  reader.readAsText(file);
+  setFileStatusUI('loading', `Loading ${file.name}…`);
+  renderLogBadges();
+
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = async e => {
+      const lines = e.target.result.split('\n');
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('Time') || trimmed.startsWith(';')) continue;
+        const f = parseLine(trimmed);
+        if (f) { fileFrames.push(f); frameBufPush(f); addIdChip(f.id); }
+      }
+      if (frameBuf.length === 0) {
+        setFileStatusUI('error', 'No valid frames found');
+        logs.pop(); activeLogIdx = logs.length - 1;
+        if (activeLogIdx >= 0) { restoreLogState(activeLogIdx); }
+        else { dz.classList.remove('has-file'); }
+        renderLogBadges(); resolve(); return;
+      }
+      newLog.frameCount = frameBuf.length;
+      setFileStatusUI('file', `${frameBuf.length.toLocaleString()} frames loaded`);
+      dvrIdx = 0; isLive = false; isPlaying = false;
+      clearInterval(dvrReplayTimer); dvrReplayTimer = null;
+      rebuildPivotToIndex(0);
+      updatePlayBtn(); updateScrub(); updateModeBadge();
+      updatePlayheadDisplay(frameBuf[0]);
+      saveActiveLogState();
+      newLog.frameCount = frameBuf.length;
+      renderLogBadges();
+      resolve();
+    };
+    reader.readAsText(file);
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1481,18 +1512,19 @@ function initDropzone() {
   dz.addEventListener('drop', e => {
     e.preventDefault(); e.stopPropagation();
     dz.classList.remove('drag-over');
-    const file = e.dataTransfer.files[0];
-    if (!file) return;
-    if (file.name.endsWith('.json')) {
+    const files = [...e.dataTransfer.files];
+    if (!files.length) return;
+    // JSON config: only first file
+    if (files[0].name.endsWith('.json')) {
       const reader = new FileReader();
       reader.onload = ev => {
         try { applyConfig(JSON.parse(ev.target.result)); }
         catch { dlgAlert('Ungültige Konfigurationsdatei — kein valides JSON.', 'Fehler'); }
       };
-      reader.readAsText(file);
+      reader.readAsText(files[0]);
     } else {
       setSource('file');
-      handleFileObject(file);
+      (async () => { for (const f of files) await handleFileObject(f); })();
     }
   });
 }
@@ -2235,6 +2267,7 @@ async function exportLog() {
 
 async function clearBuffer() {
   if (!await dlgConfirm('Alle gepufferten Frames löschen?', 'Buffer leeren')) return;
+  logs = []; activeLogIdx = -1;
   frameBufClear();
   fileFrames = [];
   await idbClear();
@@ -2243,7 +2276,127 @@ async function clearBuffer() {
   document.getElementById('pivot-body').innerHTML = '';
   knownIds.clear(); filteredIds.clear();
   document.getElementById('id-grid').innerHTML = '';
+  renderLogBadges();
+  const dz = document.getElementById('dropzone');
+  dz.classList.remove('has-file');
+  document.getElementById('dz-icon').textContent = '📂';
+  document.getElementById('dz-label').textContent = 'Drop .log / .trc file here';
+  document.getElementById('dz-sub').textContent = 'or click to browse';
+  setFileStatusUI('off', 'No file loaded');
   redrawGraph();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MULTI-LOG MANAGEMENT
+// ═══════════════════════════════════════════════════════════════
+
+function saveActiveLogState() {
+  if (activeLogIdx < 0 || activeLogIdx >= logs.length) return;
+  const log = logs[activeLogIdx];
+  log.frames       = fileFrames.slice();
+  log.frameBuf     = frameBuf.slice();
+  log.dvrIdx       = dvrIdx;
+  log.isPlaying    = isPlaying;
+  log.isLive       = isLive;
+  log.pivotData    = JSON.parse(JSON.stringify(pivotData));
+  log.graphHistory = JSON.parse(JSON.stringify(graphHistory));
+  log.filteredIds  = [...filteredIds];
+  log.knownIds     = [...knownIds];
+}
+
+function restoreLogState(idx) {
+  const log = logs[idx];
+  fileFrames   = log.frames.slice();
+  frameBuf     = log.frameBuf.slice();
+  dvrIdx       = log.dvrIdx;
+  isPlaying    = false;
+  isLive       = false;
+  pivotData    = JSON.parse(JSON.stringify(log.pivotData));
+  graphHistory = JSON.parse(JSON.stringify(log.graphHistory));
+  filteredIds  = new Set(log.filteredIds);
+  knownIds     = new Set(log.knownIds);
+  clearInterval(dvrReplayTimer); dvrReplayTimer = null;
+  rebuildIdGrid();
+  document.getElementById('pivot-body').innerHTML = '';
+  for (const id of [...knownIds].sort()) {
+    if (filteredIds.has(id)) renderPivotRow(id, false);
+  }
+  redrawGraph();
+  updatePlayBtn(); updateScrub(); updateModeBadge();
+  if (frameBuf[dvrIdx]) updatePlayheadDisplay(frameBuf[dvrIdx]);
+}
+
+function rebuildIdGrid() {
+  const grid = document.getElementById('id-grid');
+  grid.innerHTML = '';
+  for (const id of [...knownIds].sort()) {
+    const info = KNOWN[id];
+    const chip = document.createElement('div');
+    chip.className = 'id-chip' + (filteredIds.has(id) ? ' on' : '');
+    chip.id = 'chip-'+id;
+    chip.dataset.id = id;
+    chip.innerHTML = `0x${id}${info ? `<span class="cname">${info.name.split(' ').slice(0,2).join(' ')}</span>` : ''}`;
+    if (info) chip.style.borderColor = info.color+'77';
+    chip.onclick = () => toggleId(id, chip);
+    grid.appendChild(chip);
+  }
+}
+
+function switchToLog(idx) {
+  if (idx === activeLogIdx) return;
+  if (activeLogIdx >= 0) saveActiveLogState();
+  activeLogIdx = idx;
+  const log = logs[idx];
+  restoreLogState(idx);
+  const dz = document.getElementById('dropzone');
+  dz.classList.add('has-file');
+  setFileStatusUI('file', `${log.frameCount.toLocaleString()} frames`);
+  renderLogBadges();
+  if (document.getElementById('page-analyze').classList.contains('active')) refreshAnalyze();
+}
+
+function removeLog(idx) {
+  logs.splice(idx, 1);
+  if (logs.length === 0) {
+    activeLogIdx = -1;
+    fileFrames = []; frameBufClear();
+    pivotData = {}; graphHistory = {};
+    filteredIds = new Set(); knownIds = new Set();
+    document.getElementById('id-grid').innerHTML = '';
+    document.getElementById('pivot-body').innerHTML = '';
+    const dz = document.getElementById('dropzone');
+    dz.classList.remove('has-file');
+    document.getElementById('dz-icon').textContent = '📂';
+    document.getElementById('dz-label').textContent = 'Drop .log / .trc file here';
+    document.getElementById('dz-sub').textContent = 'or click to browse';
+    setFileStatusUI('off', 'No file loaded');
+    updatePlayBtn(); updateScrub(); updateModeBadge(); redrawGraph();
+  } else {
+    const newIdx = Math.min(idx, logs.length - 1);
+    activeLogIdx = -1; // force fresh restore
+    switchToLog(newIdx);
+  }
+  renderLogBadges();
+}
+
+function renderLogBadges() {
+  const list = document.getElementById('log-list');
+  if (!list) return;
+  list.innerHTML = '';
+  for (let i = 0; i < logs.length; i++) {
+    const log = logs[i];
+    const badge = document.createElement('div');
+    badge.className = 'log-badge' + (i === activeLogIdx ? ' active' : '');
+    const removeBtn = document.createElement('span');
+    removeBtn.className = 'log-badge-remove';
+    removeBtn.title = 'Entfernen';
+    removeBtn.textContent = '✕';
+    removeBtn.onclick = e => { e.stopPropagation(); removeLog(i); };
+    badge.innerHTML = `<span class="log-badge-name" title="${log.name}">📄 ${log.name}</span><span class="log-badge-count">${log.frameCount.toLocaleString()} fr</span>`;
+    badge.appendChild(removeBtn);
+    badge.addEventListener('click', () => switchToLog(i));
+    list.appendChild(badge);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
