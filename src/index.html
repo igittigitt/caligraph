@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CaLiGRAPH v1.0.8</title>
+<title>CaLiGRAPH v1.0.10</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&display=swap');
 
@@ -469,8 +469,8 @@ body::after {
 }
 .az-row.annotated { border-color:rgba(0,255,136,0.35); background:rgba(0,255,136,0.04); }
 .az-row.varies    { background:rgb(255 200 0 / 0.24); }
-.az-fbtn-diff     { color:var(--yellow) !important; border-color:rgba(255,200,0,0.4) !important; }
-.az-fbtn-diff.on  { background:rgba(255,200,0,0.18) !important; }
+.az-fbtn-diff     { color:#c47eff !important; border-color:rgba(196,126,255,0.4) !important; }
+.az-fbtn-diff.on  { background:rgba(196,126,255,0.18) !important; }
 .az-log-presence  { display:flex; gap:3px; flex-wrap:wrap; margin-top:4px; }
 .az-log-tag       { font-size:9px; font-weight:700; letter-spacing:0.05em; padding:1px 5px; border-radius:3px; }
 .az-log-tag.absent{ opacity:0.25; }
@@ -648,7 +648,7 @@ body::after {
 
 <!-- HEADER -->
 <header class="app-header">
-  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.0.8</div></div>
+  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.0.10</div></div>
   <div class="mode-tabs">
     <div class="mode-tab active-monitor" id="tab-monitor" onclick="showPage('monitor')">
       <span>📡</span> Monitor
@@ -2020,6 +2020,7 @@ function toggleOpt(btn) { lsAutosave();
     document.getElementById(headerMap[key])?.classList.toggle('hidden', !opts[key]);
   }
   for (const id of Object.keys(pivotData)) renderPivotRow(id, false);
+  if (key === 'hlIdChg' && document.getElementById('page-analyze')?.classList.contains('active')) refreshAnalyze();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -3316,7 +3317,7 @@ function buildAzRow(id, stat) {
   const color = ann.color || info?.color || 'var(--text2)';
   const hasAnn = !!(ann.name || ann.fields?.length);
 
-  const varies = (stat.uniquePayloads ?? 0) > 1;
+  const varies = (stat.uniquePayloads ?? 0) > 1 && opts.hlIdChg;
 
   const row = document.createElement('div');
   row.className = 'az-row' + (hasAnn ? ' annotated' : '') + (varies ? ' varies' : '');
@@ -3379,7 +3380,7 @@ function buildAzRow(id, stat) {
     const byteVaries = isDiff && stat.varyingBytes.has(i);
     const byteDimmed = isDiff && !byteVaries;
     const byteBoxStyle = byteVaries
-      ? 'background:rgb(255 200 0 / 0.24);border-radius:4px;'
+      ? 'background:rgb(196 126 255 / 0.24);border-radius:4px;'
       : byteDimmed ? 'opacity:0.35;' : '';
     bytesHtml += `
       <div class="az-byte-box${fieldAnn?' annotated':''}" style="${byteBoxStyle}">
