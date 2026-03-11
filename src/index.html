@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CaLiGRAPH v1.0.7</title>
+<title>CaLiGRAPH v1.0.8</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&display=swap');
 
@@ -469,6 +469,11 @@ body::after {
 }
 .az-row.annotated { border-color:rgba(0,255,136,0.35); background:rgba(0,255,136,0.04); }
 .az-row.varies    { background:rgb(255 200 0 / 0.24); }
+.az-fbtn-diff     { color:var(--yellow) !important; border-color:rgba(255,200,0,0.4) !important; }
+.az-fbtn-diff.on  { background:rgba(255,200,0,0.18) !important; }
+.az-log-presence  { display:flex; gap:3px; flex-wrap:wrap; margin-top:4px; }
+.az-log-tag       { font-size:9px; font-weight:700; letter-spacing:0.05em; padding:1px 5px; border-radius:3px; }
+.az-log-tag.absent{ opacity:0.25; }
 .az-row-header {
   display:flex; align-items:center; gap:0; cursor:pointer; user-select:none; min-height:48px;
   border-radius:7px 7px 0 0; overflow:hidden;
@@ -643,7 +648,7 @@ body::after {
 
 <!-- HEADER -->
 <header class="app-header">
-  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.0.7</div></div>
+  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.0.8</div></div>
   <div class="mode-tabs">
     <div class="mode-tab active-monitor" id="tab-monitor" onclick="showPage('monitor')">
       <span>📡</span> Monitor
@@ -964,6 +969,7 @@ body::after {
         <div class="az-fbtn on" id="azf-all"     onclick="setAzFilter('all')">ALL</div>
         <div class="az-fbtn"   id="azf-unknown"  onclick="setAzFilter('unknown')">UNKNOWN</div>
         <div class="az-fbtn"   id="azf-known"    onclick="setAzFilter('known')">ANNOTATED</div>
+        <div class="az-fbtn az-fbtn-diff" id="azf-diff" onclick="setAzFilter('diff')" style="display:none">DIFF</div>
       </div>
       <button class="btn sm" onclick="refreshAnalyze()">↻ REFRESH</button>
     </div>
@@ -2469,6 +2475,12 @@ function renderLogBadges() {
     badge.addEventListener('click', () => switchToLog(i));
     list.appendChild(badge);
   }
+  // Show DIFF button only when ≥ 2 logs loaded
+  const diffBtn = document.getElementById('azf-diff');
+  if (diffBtn) {
+    diffBtn.style.display = logs.length >= 2 ? '' : 'none';
+    if (logs.length < 2 && azFilter === 'diff') setAzFilter('all');
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -3043,39 +3055,32 @@ let azEditingDraft = null; // deep copy, discarded on cancel
 let azBitSelection = {};   // byteIdx → Set of bit indices currently selected in modal
 
 // ── Statistics per ID (computed from frameBuf) ─────────────────
-function computeIdStats() {
-  const MAX_SPARK = 80; // max sparkline samples per byte
-  const PRESENCE_BINS = 60; // bins for presence graph
+function computeIdStatsForFrames(frames) {
+  const MAX_SPARK = 80;
+  const PRESENCE_BINS = 60;
   const stats = {};
-  if (!frameBuf.length) return stats;
+  if (!frames.length) return stats;
 
-  // Global time range
-  const t0 = frameBuf[0].ts;
-  const tN = frameBuf[frameBuf.length-1].ts;
+  const t0 = frames[0].ts;
+  const tN = frames[frames.length-1].ts;
   const tRange = tN - t0 || 1;
 
-  // First pass: collect all frames per ID
   const idFrames = {};
-  for (const f of frameBuf) {
+  for (const f of frames) {
     if (!idFrames[f.id]) idFrames[f.id] = [];
     idFrames[f.id].push(f);
   }
-  for (const [id, frames] of Object.entries(idFrames)) {
-    const s = { count: frames.length, byteStats: [], presence: new Array(PRESENCE_BINS).fill(0) };
-
-    // Build presence histogram (frame density over time)
-    for (const f of frames) {
+  for (const [id, frs] of Object.entries(idFrames)) {
+    const s = { count: frs.length, byteStats: [], presence: new Array(PRESENCE_BINS).fill(0) };
+    for (const f of frs) {
       const bin = Math.min(PRESENCE_BINS-1, Math.floor(((f.ts - t0) / tRange) * PRESENCE_BINS));
       s.presence[bin]++;
     }
-
-    // Downsample to MAX_SPARK evenly spaced frames for byte sparklines
-    const step = Math.max(1, Math.floor(frames.length / MAX_SPARK));
+    const step = Math.max(1, Math.floor(frs.length / MAX_SPARK));
     const samples = [];
-    for (let i = 0; i < frames.length; i += step) samples.push(frames[i]);
-
+    for (let i = 0; i < frs.length; i += step) samples.push(frs[i]);
     const uniquePayloadSet = new Set();
-    frames.forEach(f => {
+    frs.forEach(f => {
       uniquePayloadSet.add(f.dataHex);
       f.bytes.forEach((b, i) => {
         if (!s.byteStats[i]) s.byteStats[i] = { min:255, max:0, vals:new Set(), spark:[] };
@@ -3096,10 +3101,88 @@ function computeIdStats() {
   return stats;
 }
 
+function computeIdStats() {
+  return computeIdStatsForFrames(frameBuf);
+}
+
+// Merge byteStats from multiple per-log stat objects into one (union of ranges/vals)
+function mergeIdStats(statList) {
+  const merged = { count: 0, byteStats: [], presence: [], uniquePayloads: 0 };
+  for (const s of statList) {
+    merged.count += s.count;
+    merged.uniquePayloads = Math.max(merged.uniquePayloads, s.uniquePayloads || 1);
+    s.byteStats.forEach((bs, i) => {
+      if (!merged.byteStats[i]) merged.byteStats[i] = { min:255, max:0, vals:new Set(), spark: bs.spark.slice() };
+      const mb = merged.byteStats[i];
+      if (bs.min < mb.min) mb.min = bs.min;
+      if (bs.max > mb.max) mb.max = bs.max;
+      for (const v of bs.vals) mb.vals.add(v);
+    });
+    if (!merged.presence.length) merged.presence = s.presence.slice();
+    else s.presence.forEach((v, i) => { if (merged.presence[i] !== undefined) merged.presence[i] += v; });
+  }
+  return merged;
+}
+
+// Returns Set of byte indices that differ across the given per-log stats
+function diffVaryingBytes(statList) {
+  const varying = new Set();
+  if (statList.length < 2) return varying;
+  const maxLen = Math.max(...statList.map(s => s.byteStats.length));
+  for (let i = 0; i < maxLen; i++) {
+    const entries = statList.filter(s => s.byteStats[i]);
+    if (entries.length < statList.length) { varying.add(i); continue; } // byte absent in some log
+    const firstMin = entries[0].byteStats[i].min, firstMax = entries[0].byteStats[i].max;
+    if (entries.some(s => s.byteStats[i].min !== firstMin || s.byteStats[i].max !== firstMax)) varying.add(i);
+  }
+  return varying;
+}
+
+// Log badge colors (cyclic, matching log-badge CSS accent colors)
+const LOG_TAG_COLORS = [
+  {fg:'#3f7199', bg:'rgba(63,113,153,0.22)'},
+  {fg:'#00ff88', bg:'rgba(0,255,136,0.15)'},
+  {fg:'#ffc800', bg:'rgba(255,200,0,0.18)'},
+  {fg:'#e05dff', bg:'rgba(224,93,255,0.15)'},
+  {fg:'#ff6b6b', bg:'rgba(255,107,107,0.15)'},
+  {fg:'#6bc5ff', bg:'rgba(107,197,255,0.15)'},
+];
+
+function computeDiffStats() {
+  const perLog = logs.map((log, li) => ({
+    idx: li,
+    name: log.name,
+    stats: computeIdStatsForFrames(log.frameBuf && log.frameBuf.length ? log.frameBuf : (log.frames || []))
+  }));
+
+  const allIds = new Set(perLog.flatMap(l => Object.keys(l.stats)));
+  const diffResult = {};
+
+  for (const id of allIds) {
+    const present = perLog.filter(l => l.stats[id]);
+    if (!present.length) continue;
+
+    const presentInAll = present.length === perLog.length;
+    const varyingBytes = diffVaryingBytes(present.map(l => l.stats[id]));
+
+    // Only include if there is a meaningful difference
+    if (presentInAll && varyingBytes.size === 0) continue;
+
+    const merged = mergeIdStats(present.map(l => l.stats[id]));
+    diffResult[id] = {
+      ...merged,
+      varyingBytes,
+      presentInLogs: present.map(l => l.idx),
+      totalLogs: perLog.length
+    };
+  }
+  return diffResult;
+}
+
 // ── Filter ────────────────────────────────────────────────────
 function setAzFilter(f) {
   azFilter = f;
-  ['all','unknown','known'].forEach(x => {
+  ['all','unknown','known','diff'].forEach(x => {
     document.getElementById('azf-'+x)?.classList.toggle('on', x===f);
   });
   refreshAnalyze();
@@ -3107,10 +3190,22 @@ function setAzFilter(f) {
 
 // ── Main render ───────────────────────────────────────────────
 function refreshAnalyze() {
-  const stats = computeIdStats();
-  const ids = Object.keys(stats).sort();
   const list = document.getElementById('az-list');
   if (!list) return;
+
+  if (azFilter === 'diff') {
+    const diffStats = computeDiffStats();
+    const ids = Object.keys(diffStats).sort();
+    document.getElementById('az-stat-total').textContent  = `${ids.length} IDs differ`;
+    document.getElementById('az-stat-known').textContent  = `${logs.length} logs`;
+    document.getElementById('az-stat-frames').textContent = `${frameBuf.length.toLocaleString()} frames`;
+    list.innerHTML = '';
+    for (const id of ids) list.appendChild(buildAzRow(id, diffStats[id]));
+    return;
+  }
+
+  const stats = computeIdStats();
+  const ids = Object.keys(stats).sort();
 
   // Stats bar
   const totalIds   = ids.length;
@@ -3280,8 +3375,14 @@ function buildAzRow(id, stat) {
       // single value — flat line
       sparkSvg = `<line x1="0" y1="${H/2}" x2="${W}" y2="${H/2}" stroke="#2a4860" stroke-width="1.5"/>`;
     }
+    const isDiff = !!stat.varyingBytes;
+    const byteVaries = isDiff && stat.varyingBytes.has(i);
+    const byteDimmed = isDiff && !byteVaries;
+    const byteBoxStyle = byteVaries
+      ? 'background:rgb(255 200 0 / 0.24);border-radius:4px;'
+      : byteDimmed ? 'opacity:0.35;' : '';
     bytesHtml += `
-      <div class="az-byte-box${fieldAnn?' annotated':''}">
+      <div class="az-byte-box${fieldAnn?' annotated':''}" style="${byteBoxStyle}">
         <div class="az-byte-idx">Byte ${i}</div>
         <svg class="az-byte-spark" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"
           style="background:var(--bg3);border-radius:2px;" title="B${i}: ${rangeStr}">
@@ -3313,6 +3414,19 @@ function buildAzRow(id, stat) {
   });
   const presenceSvg = `<svg class="az-presence-svg" viewBox="0 0 ${PW} ${PH}" xmlns="http://www.w3.org/2000/svg">${presenceBars}</svg>`;
 
+  let logPresenceHtml = '';
+  if (stat.presentInLogs) {
+    logPresenceHtml = '<div class="az-log-presence">';
+    for (let li = 0; li < stat.totalLogs; li++) {
+      const present = stat.presentInLogs.includes(li);
+      const tc = LOG_TAG_COLORS[li % LOG_TAG_COLORS.length];
+      const bg = present ? tc.bg : 'rgba(100,100,100,0.12)';
+      const fg = present ? tc.fg : 'var(--text3)';
+      logPresenceHtml += `<span class="az-log-tag${present?'':' absent'}" style="background:${bg};color:${fg}">L${li+1}</span>`;
+    }
+    logPresenceHtml += '</div>';
+  }
+
   hdr.innerHTML += `
     <div class="az-col-label-stats">
       <div class="az-inline-stats">
@@ -3322,6 +3436,7 @@ function buildAzRow(id, stat) {
         <span class="az-stat-row">Varies: <span>${(stat.uniquePayloads ?? 1) - 1}</span></span>
       </div>
       ${presenceSvg}
+      ${logPresenceHtml}
       ${ascBadge}
     </div>`;
 
