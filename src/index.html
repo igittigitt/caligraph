@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CaLiGRAPH v1.0.5</title>
+<title>CaLiGRAPH v1.0.6</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&display=swap');
 
@@ -340,14 +340,11 @@ body::after {
 }
 .byte-cell:last-child { border-right:none; }
 .bc-idx { font-size:8px; color:var(--text3); margin-bottom:2px; }
-.bc-hex { font-size:13px; font-weight:600; font-family:var(--mono); transition:color 0.1s, text-shadow 0.1s; }
+.bc-hex { font-size:13px; font-weight:600; font-family:var(--mono); }
 .bc-bin { font-size:8px; color:var(--text3); letter-spacing:0.5px; font-family:var(--mono); }
 .bc-dec { font-size:9px; color:var(--text2); font-family:var(--mono); }
 .bc-asc { font-size:10px; color:var(--purple); font-family:var(--mono); }
-.byte-cell.flash .bc-hex { color:var(--green) !important; text-shadow:0 0 10px rgba(0,255,136,0.6); }
-.byte-cell.flash .bc-bin { color:rgba(0,255,136,0.5); }
-.row-flash { animation: rowglow 0.5s ease forwards; }
-@keyframes rowglow { 0%{background:rgba(0,255,136,0.08)} 100%{background:transparent} }
+.bc-bit { display:inline-block; border-radius:2px; padding:0 1px; }
 
 .pr-decoded { width:175px; min-width:175px; padding:9px 12px; border-left:1px solid var(--border); display:flex; align-items:center; font-size:11px; }
 .pr-freq { width:105px; min-width:105px; padding:9px 12px; border-left:1px solid var(--border); display:flex; flex-direction:column; justify-content:center; }
@@ -646,7 +643,7 @@ body::after {
 
 <!-- HEADER -->
 <header class="app-header">
-  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.0.5</div></div>
+  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.0.6</div></div>
   <div class="mode-tabs">
     <div class="mode-tab active-monitor" id="tab-monitor" onclick="showPage('monitor')">
       <span>📡</span> Monitor
@@ -824,6 +821,8 @@ body::after {
         <div class="opt-btn on" data-opt="freq" onclick="toggleOpt(this)">Δt / Hz</div>
         <div class="opt-btn" data-opt="age" onclick="toggleOpt(this)">AGE</div>
         <div class="opt-btn on" data-opt="count" onclick="toggleOpt(this)">COUNT</div>
+        <div class="opt-btn on" data-opt="hlIdChg" onclick="toggleOpt(this)">HIGHLIGHT-ID-CHG</div>
+        <div class="opt-btn on" data-opt="hlByteChg" onclick="toggleOpt(this)">HIGHLIGHT-BYTE-CHG</div>
       </div>
     </div>
 
@@ -1252,7 +1251,10 @@ let filteredIds = new Set();
 let knownIds = new Set();
 
 // Display opts
-let opts = { hex:true, bin:false, dec:false, asc:true, delta:true, decoded:true, freq:true, age:false, count:true };
+let opts = { hex:true, bin:false, dec:false, asc:true, delta:true, decoded:true, freq:true, age:false, count:true, hlIdChg:true, hlByteChg:true };
+let rowGlowTimers  = {};  // id → { raf, timeout }
+let byteGlowTimers = {};  // `${id}-${byteIdx}` → { raf, timeout }
+let bitGlowTimers  = {};  // `${id}-${byteIdx}-${bitIdx}` → { raf, timeout }
 
 // Graph
 let graphWindow = 30;      // seconds
@@ -1579,6 +1581,24 @@ function applyFrameToPivot(frame, animate) {
   renderPivotRow(frame.id, animate && prev !== undefined);
 }
 
+// ── Glow helper: instant-on bright green, fades to transparent over 2 s ──
+function applyGlow(el, key, store) {
+  if (!el) return;
+  const prev = store[key];
+  if (prev) { cancelAnimationFrame(prev.raf); clearTimeout(prev.timeout); }
+  el.style.transition = 'none';
+  el.style.background  = 'rgba(0,255,136,0.32)';
+  const raf = requestAnimationFrame(() => {
+    el.style.transition  = 'background 2s ease-out';
+    el.style.background  = '';
+    store[key] = { raf: 0, timeout: setTimeout(() => {
+      el.style.transition = '';
+      delete store[key];
+    }, 2100) };
+  });
+  store[key] = { raf, timeout: 0 };
+}
+
 function renderPivotRow(id, animate) {
   const info = KNOWN[id];
   const d = pivotData[id];
@@ -1588,18 +1608,38 @@ function renderPivotRow(id, animate) {
   const now = performance.now();
   const ageSec = d.lastTs ? ((source==='ws' ? now/1000 : 0) - d.lastTs) : 0;
 
+  // Detect per-byte / per-bit changes
+  const changedBytes = [];
+  const changedBits  = {};   // byteIdx → [bitPos in string 0-7]
+
   // Bytes
   let bytesHtml = '';
   for (let i=0; i<d.bytes.length; i++) {
-    const bv = d.bytes[i];
-    const changed = animate && d.prevBytes && d.prevBytes[i] !== bv;
+    const bv  = d.bytes[i];
+    const prev = (animate && d.prevBytes) ? d.prevBytes[i] : bv;
+    const byteChanged = animate && d.prevBytes && prev !== bv;
+    if (byteChanged) changedBytes.push(i);
+
     const hex = bv.toString(16).toUpperCase().padStart(2,'0');
-    const bin = bv.toString(2).padStart(8,'0');
     const asc = (bv >= 32 && bv <= 126) ? String.fromCharCode(bv) : '·';
-    bytesHtml += `<div class="byte-cell${changed?' flash':''}" id="bc-${id}-${i}">
+
+    let binHtml = '';
+    if (opts.bin) {
+      changedBits[i] = [];
+      let bits = '';
+      for (let j=0; j<8; j++) {
+        const bitVal     = (bv    >> (7-j)) & 1;
+        const bitChanged = animate && (((prev ^ bv) >> (7-j)) & 1);
+        if (bitChanged) changedBits[i].push(j);
+        bits += `<span class="bc-bit" id="bb-${id}-${i}-${j}">${bitVal}</span>`;
+      }
+      binHtml = `<div class="bc-bin">${bits}</div>`;
+    }
+
+    bytesHtml += `<div class="byte-cell" id="bc-${id}-${i}">
       <div class="bc-idx">B${i}</div>
       ${opts.hex ? `<div class="bc-hex">${hex}</div>` : ''}
-      ${opts.bin ? `<div class="bc-bin">${bin}</div>` : ''}
+      ${binHtml}
       ${opts.dec ? `<div class="bc-dec">${bv}</div>` : ''}
       ${opts.asc ? `<div class="bc-asc">${asc}</div>` : ''}
     </div>`;
@@ -1613,7 +1653,7 @@ function renderPivotRow(id, animate) {
   const ageStr = source==='ws' ? formatAge(ageSec) : '—';
 
   const rowHtml = `
-    <div class="pivot-row${animate?' row-flash':''}">
+    <div class="pivot-row">
       <div class="pr-id" onclick="toggleId('${id}', null)">
         <div class="pr-id-hex" style="color:${color}">0x${id}</div>
         <div class="pr-id-name" style="color:${color}">${info?.name||''}</div>
@@ -1639,6 +1679,21 @@ function renderPivotRow(id, animate) {
     else tbody.insertBefore(tr, tbody.children[sidx]);
   }
   tr.innerHTML = rowHtml;
+
+  // ── Apply glow effects after DOM rebuild ──
+  if (changedBytes.length > 0) {
+    if (opts.hlIdChg)   applyGlow(tr, id, rowGlowTimers);
+    if (opts.hlByteChg) {
+      for (const i of changedBytes) {
+        applyGlow(document.getElementById(`bc-${id}-${i}`), `${id}-${i}`, byteGlowTimers);
+        if (opts.bin && changedBits[i]) {
+          for (const j of changedBits[i]) {
+            applyGlow(document.getElementById(`bb-${id}-${i}-${j}`), `${id}-${i}-${j}`, bitGlowTimers);
+          }
+        }
+      }
+    }
+  }
 }
 
 function formatAge(sec) {
