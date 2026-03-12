@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CaLiGRAPH v1.0.11</title>
+<title>CaLiGRAPH v1.1.1</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&display=swap');
 
@@ -120,6 +120,21 @@ body::after {
 .log-badge-count { font-size:9px; color:var(--text3); white-space:nowrap; flex-shrink:0; }
 .log-badge-remove { color:var(--text3); cursor:pointer; padding:0 3px; font-size:11px; flex-shrink:0; }
 .log-badge-remove:hover { color:var(--red); }
+.log-entry { display:flex; flex-direction:column; }
+.log-entry .log-badge { border-radius:4px 4px 0 0; border-bottom:none; }
+.log-bdf-row {
+  display:flex; align-items:center; gap:5px; padding:3px 8px 4px;
+  background:var(--panel); border:1px solid var(--border2); border-top:none;
+  border-radius:0 0 4px 4px; transition:all 0.15s;
+}
+.log-badge.active + .log-bdf-row { border-color:var(--orange); background:rgba(255,140,0,0.1); }
+.log-bdf-label { font-size:9px; color:var(--text3); white-space:nowrap; letter-spacing:1px; flex-shrink:0; }
+.log-bdf-select {
+  flex:1; background:var(--bg2); border:1px solid var(--border); color:var(--text2);
+  font-family:var(--mono); font-size:9px; padding:1px 3px; border-radius:2px;
+  min-width:0; cursor:pointer;
+}
+.log-bdf-select:focus { outline:none; border-color:var(--green); }
 
 /* ─── LEFT SIDEBAR ─── */
 .mon-sidebar {
@@ -279,7 +294,9 @@ body::after {
 .frame-info { font-size:10px; color:var(--text3); white-space:nowrap; }
 .frame-info span { color:var(--text2); }
 
-.export-btn { margin-left:auto; }
+.export-group { margin-left:auto; display:flex; align-items:center; gap:5px; }
+.export-fmt-sel { background:var(--bg3); border:1px solid var(--border2); border-radius:4px; color:var(--text); font-size:10px; padding:3px 5px; font-family:var(--mono); cursor:pointer; }
+.export-fmt-sel:focus { outline:none; border-color:var(--accent); }
 
 /* Scrub row */
 .scrub-row { display:flex; align-items:center; gap:10px; }
@@ -648,7 +665,7 @@ body::after {
 
 <!-- HEADER -->
 <header class="app-header">
-  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.0.11</div></div>
+  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.1.1</div></div>
   <div class="mode-tabs">
     <div class="mode-tab active-monitor" id="tab-monitor" onclick="showPage('monitor')">
       <span>📡</span> Monitor
@@ -900,7 +917,15 @@ body::after {
         <div class="frame-info">Frame <span id="fi-cur">0</span> / <span id="fi-tot">0</span></div>
 
         <div class="tb jump-live" id="btn-jump-live" onclick="jumpToLive()" title="Jump to live">⚡ LIVE</div>
-        <button class="btn sm export-btn" onclick="exportLog()">⬇ Export .log</button>
+        <div class="export-group">
+          <select class="export-fmt-sel" id="export-fmt">
+            <option value="candump">Candump</option>
+            <option value="lawicel">Lawicel</option>
+            <option value="csv">CSV</option>
+            <option value="human">Human</option>
+          </select>
+          <button class="btn sm" onclick="exportLog()">⬇ Export .log</button>
+        </div>
       </div>
 
       <!-- Scrub bar -->
@@ -1092,7 +1117,7 @@ const KNOWN = {
 // ═══════════════════════════════════════════════════════════════
 // INDEXEDDB RING BUFFER
 // ═══════════════════════════════════════════════════════════════
-const IDB_NAME = 'linbus_buffer';
+const IDB_NAME = 'caligraph_buffer';
 const IDB_STORE = 'frames';
 const IDB_MAX = 200000;
 let db = null;
@@ -1101,11 +1126,14 @@ let idbCount = 0;
 
 async function idbOpen() {
   return new Promise((res, rej) => {
-    const req = indexedDB.open(IDB_NAME, 2);
+    const req = indexedDB.open(IDB_NAME, 3);
     req.onupgradeneeded = e => {
       const d = e.target.result;
       if (!d.objectStoreNames.contains(IDB_STORE)) {
         d.createObjectStore(IDB_STORE, { keyPath:'seq' });
+      }
+      if (!d.objectStoreNames.contains('log_data')) {
+        d.createObjectStore('log_data', { keyPath:'id' });
       }
     };
     req.onsuccess = e => { db = e.target.result; res(db); };
@@ -1181,6 +1209,34 @@ async function idbClear() {
 
 function updateIdbUI() {
   const hdrEl = document.getElementById('hdr-idb-count'); if (hdrEl) hdrEl.textContent = idbCount.toLocaleString();
+}
+
+async function idbSaveLog(log) {
+  if (!db) return;
+  return new Promise(res => {
+    const tx = db.transaction('log_data', 'readwrite');
+    tx.objectStore('log_data').put({ id: log.id, name: log.name, frames: log.frameBuf });
+    tx.oncomplete = () => res();
+    tx.onerror    = () => res();
+  });
+}
+
+async function idbDeleteLog(id) {
+  if (!db) return;
+  return new Promise(res => {
+    const tx = db.transaction('log_data', 'readwrite');
+    tx.objectStore('log_data').delete(id);
+    tx.oncomplete = () => res();
+    tx.onerror    = () => res();
+  });
+}
+
+async function idbLoadAllLogs() {
+  if (!db) return [];
+  return new Promise(res => {
+    const tx = db.transaction('log_data', 'readonly');
+    tx.objectStore('log_data').getAll().onsuccess = e => res(e.target.result || []);
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1284,6 +1340,7 @@ function setSource(s) {
   document.getElementById('ws-controls').style.display   = s==='ws'   ? '' : 'none';
   document.getElementById('file-controls').style.display = s==='file' ? '' : 'none';
   if (s==='ws' && ws) { /* keep ws */ }
+  lsAutosave();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1452,6 +1509,7 @@ async function handleFileObject(file) {
     id: Date.now(), name: file.name, fileSize: file.size, frameCount: 0,
     frames: [], frameBuf: [], dvrIdx: 0, isPlaying: false, isLive: false,
     pivotData: {}, graphHistory: {}, filteredIds: [], knownIds: [],
+    bdfId: null,
   };
   logs.push(newLog);
   activeLogIdx = logs.length - 1;
@@ -1496,7 +1554,10 @@ async function handleFileObject(file) {
       updatePlayheadDisplay(frameBuf[0]);
       saveActiveLogState();
       newLog.frameCount = frameBuf.length;
+      idbSaveLog(newLog);
+      lsAutosave();
       renderLogBadges();
+      if (document.getElementById('page-analyze').classList.contains('active')) refreshAnalyze();
       resolve();
     };
     reader.readAsText(file);
@@ -1833,6 +1894,7 @@ function toggleLoop() {
   loopEnabled = !loopEnabled;
   const btn = document.getElementById('btn-loop');
   if (btn) btn.classList.toggle('active', loopEnabled);
+  lsAutosave();
 }
 
 function setSpeed(v) {
@@ -1841,6 +1903,7 @@ function setSpeed(v) {
     // restart replay from current position with new speed
     startDvrReplay();
   }
+  lsAutosave();
 }
 
 function jumpToLive() {
@@ -1988,6 +2051,7 @@ function toggleId(id, chip) {
     chip?.classList.add('on');
     if (pivotData[id]) renderPivotRow(id, false);
   }
+  lsAutosave();
 }
 
 let allIdsOn = true;
@@ -2005,6 +2069,7 @@ function toggleAllIds() {
       document.getElementById('pivot-row-'+id)?.remove();
     }
   }
+  lsAutosave();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -2329,18 +2394,92 @@ function removeTrace(i) {
 // ═══════════════════════════════════════════════════════════════
 // EXPORT
 // ═══════════════════════════════════════════════════════════════
-async function exportLog() {
-  const frames = source==='file' ? fileFrames : await idbGetAll();
-  if (!frames.length) { dlgAlert('Keine Daten zum Exportieren.', 'Export'); return; }
-  let txt = '# LIN Bus Analyzer — exported log\n';
+function exportDefaultFilename(ext) {
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const date = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+  const time = `${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+  return `logfile_${date}T${time}.${ext}`;
+}
+
+function formatFramesCandump(frames) {
+  let txt = '# CaLiGRAPH — Candump format\n';
   for (const f of frames) {
     const status = f.status==='unans' ? 'UNANSWERED' : f.status==='err' ? 'ERROR' : 'OK Classic';
     txt += `(${f.ts.toFixed(6)}) lin0 ${f.id}#${f.dataHex} # ${status}\n`;
   }
-  const blob = new Blob([txt], {type:'text/plain'});
+  return txt;
+}
+
+function formatFramesLawicel(frames) {
+  let txt = '';
+  for (const f of frames) {
+    const id = f.id.padStart(3,'0');
+    const dlc = Math.floor(f.dataHex.length / 2);
+    txt += `t${id}${dlc}${f.dataHex}\r\n`;
+  }
+  return txt;
+}
+
+function formatFramesCSV(frames) {
+  let txt = 'timestamp,id,dlc,data_hex,data_bytes,status\n';
+  for (const f of frames) {
+    const dlc = Math.floor(f.dataHex.length / 2);
+    const dataBytes = f.bytes ? f.bytes.map(b=>b.toString(16).toUpperCase().padStart(2,'0')).join(' ') : '';
+    const status = f.status==='unans' ? 'UNANSWERED' : f.status==='err' ? 'ERROR' : 'OK';
+    txt += `${f.ts.toFixed(6)},${f.id},${dlc},${f.dataHex},"${dataBytes}",${status}\n`;
+  }
+  return txt;
+}
+
+function formatFramesHuman(frames) {
+  let txt = '# CaLiGRAPH — Human readable format\n';
+  for (const f of frames) {
+    const dlc = Math.floor(f.dataHex.length / 2);
+    const dataBytes = f.bytes ? f.bytes.map(b=>b.toString(16).toUpperCase().padStart(2,'0')).join(' ') : f.dataHex;
+    const status = f.status==='unans' ? 'UNANSWERED' : f.status==='err' ? 'ERROR' : 'OK';
+    txt += `t=${f.ts.toFixed(6).padStart(14)}  ID=${f.id}  Len=${dlc}  Data: ${dataBytes.padEnd(23)}  [${status}]\n`;
+  }
+  return txt;
+}
+
+async function exportLog() {
+  const frames = source==='file' ? fileFrames : await idbGetAll();
+  if (!frames.length) { dlgAlert('Keine Daten zum Exportieren.', 'Export'); return; }
+
+  const fmt = (document.getElementById('export-fmt')?.value) || 'candump';
+  let txt, ext, mimeType;
+  if (fmt === 'csv') {
+    txt = formatFramesCSV(frames); ext = 'csv'; mimeType = 'text/csv';
+  } else if (fmt === 'lawicel') {
+    txt = formatFramesLawicel(frames); ext = 'log'; mimeType = 'text/plain';
+  } else if (fmt === 'human') {
+    txt = formatFramesHuman(frames); ext = 'log'; mimeType = 'text/plain';
+  } else {
+    txt = formatFramesCandump(frames); ext = 'log'; mimeType = 'text/plain';
+  }
+
+  const defaultName = exportDefaultFilename(ext);
+  const blob = new Blob([txt], {type: mimeType});
+
+  if (window.showSaveFilePicker) {
+    try {
+      const exts = ext === 'csv' ? ['.csv'] : ['.log'];
+      const handle = await window.showSaveFilePicker({
+        suggestedName: defaultName,
+        types: [{ description: 'Log file', accept: { [mimeType]: exts } }]
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return;
+    } catch(e) {
+      if (e.name === 'AbortError') return;
+    }
+  }
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `lin_export_${Date.now()}.log`;
+  a.download = defaultName;
   a.click();
 }
 
@@ -2350,6 +2489,10 @@ async function clearBuffer() {
   frameBufClear();
   fileFrames = [];
   await idbClear();
+  // Also clear persisted file-log frames
+  const logDataTx = db?.transaction('log_data', 'readwrite');
+  logDataTx?.objectStore('log_data').clear();
+  lsAutosave();
   pivotData = {};
   graphHistory = {};
   document.getElementById('pivot-body').innerHTML = '';
@@ -2403,6 +2546,7 @@ function restoreLogState(idx) {
   redrawGraph();
   updatePlayBtn(); updateScrub(); updateModeBadge();
   if (frameBuf[dvrIdx]) updatePlayheadDisplay(frameBuf[dvrIdx]);
+  syncAnnotationsToLog();
 }
 
 function rebuildIdGrid() {
@@ -2435,6 +2579,8 @@ function switchToLog(idx) {
 }
 
 function removeLog(idx) {
+  const removedId = logs[idx].id;
+  idbDeleteLog(removedId);
   logs.splice(idx, 1);
   if (logs.length === 0) {
     activeLogIdx = -1;
@@ -2456,6 +2602,7 @@ function removeLog(idx) {
     switchToLog(newIdx);
   }
   renderLogBadges();
+  lsAutosave();
 }
 
 function renderLogBadges() {
@@ -2464,6 +2611,12 @@ function renderLogBadges() {
   list.innerHTML = '';
   for (let i = 0; i < logs.length; i++) {
     const log = logs[i];
+
+    // Wrapper entry
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+
+    // Badge row
     const badge = document.createElement('div');
     badge.className = 'log-badge' + (i === activeLogIdx ? ' active' : '');
     const removeBtn = document.createElement('span');
@@ -2474,13 +2627,74 @@ function renderLogBadges() {
     badge.innerHTML = `<span class="log-badge-name" title="${log.name}">📄 ${log.name}</span><span class="log-badge-count">${log.frameCount.toLocaleString()} fr</span>`;
     badge.appendChild(removeBtn);
     badge.addEventListener('click', () => switchToLog(i));
-    list.appendChild(badge);
+
+    // BDF dropdown row
+    const bdfRow = document.createElement('div');
+    bdfRow.className = 'log-bdf-row';
+    const bdfLabel = document.createElement('span');
+    bdfLabel.className = 'log-bdf-label';
+    bdfLabel.textContent = 'BDF';
+    const bdfSel = document.createElement('select');
+    bdfSel.className = 'log-bdf-select';
+    bdfSel.title = 'Bus-Definitions-File zuordnen';
+
+    const optNone = document.createElement('option');
+    optNone.value = '';
+    optNone.textContent = '—';
+    if (!log.bdfId) optNone.selected = true;
+    bdfSel.appendChild(optNone);
+
+    const optNew = document.createElement('option');
+    optNew.value = '__new__';
+    optNew.textContent = 'Neues BDF anlegen...';
+    bdfSel.appendChild(optNew);
+
+    for (const [bdfId, bdf] of Object.entries(bdfs)) {
+      const opt = document.createElement('option');
+      opt.value = bdfId;
+      opt.textContent = bdf.name;
+      if (bdfId === log.bdfId) opt.selected = true;
+      bdfSel.appendChild(opt);
+    }
+
+    const logIdx = i; // capture for closure
+    bdfSel.addEventListener('change', e => {
+      e.stopPropagation();
+      const val = bdfSel.value;
+      if (val === '__new__') {
+        dlgPrompt('BDF-Name eingeben:', 'Neues BDF anlegen', '').then(name => {
+          if (!name) { bdfSel.value = logs[logIdx].bdfId || ''; return; }
+          const bdfId = 'bdf_' + Date.now();
+          bdfs[bdfId] = { name, annotations: {} };
+          assignBdfToLog(logIdx, bdfId);
+          renderLogBadges();
+          lsAutosave();
+        });
+      } else {
+        assignBdfToLog(logIdx, val || null);
+        lsAutosave();
+      }
+    });
+
+    bdfRow.appendChild(bdfLabel);
+    bdfRow.appendChild(bdfSel);
+    entry.appendChild(badge);
+    entry.appendChild(bdfRow);
+    list.appendChild(entry);
   }
   // Show DIFF button only when ≥ 2 logs loaded
   const diffBtn = document.getElementById('azf-diff');
   if (diffBtn) {
     diffBtn.style.display = logs.length >= 2 ? '' : 'none';
     if (logs.length < 2 && azFilter === 'diff') setAzFilter('all');
+  }
+}
+
+function assignBdfToLog(logIdx, bdfId) {
+  logs[logIdx].bdfId = bdfId || null;
+  if (logIdx === activeLogIdx) {
+    syncAnnotationsToLog();
+    if (document.getElementById('page-analyze').classList.contains('active')) refreshAnalyze();
   }
 }
 
@@ -2907,15 +3121,16 @@ function lsSave() {
   } catch(e) { console.warn('lsSave failed:', e); }
 }
 
-function lsLoad() {
+async function lsLoad() {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return false;
     const cfg = JSON.parse(raw);
     // Restore non-DOM state immediately
-    if (Array.isArray(cfg.traces))    traces = cfg.traces;
-    if (cfg.graphWindow !== undefined) graphWindow = cfg.graphWindow;
-    if (cfg.annotations)              annotations = cfg.annotations;
+    if (Array.isArray(cfg.traces))     traces      = cfg.traces;
+    if (cfg.graphWindow !== undefined)  graphWindow = cfg.graphWindow;
+    if (cfg.annotations)               annotations = cfg.annotations;
+    if (cfg.bdfs)                      bdfs        = cfg.bdfs;
     if (cfg.displayOpts) {
       for (const [k,v] of Object.entries(cfg.displayOpts)) { if (k in opts) opts[k] = v; }
     }
@@ -2923,31 +3138,118 @@ function lsLoad() {
       const el = document.getElementById('ws-url');
       if (el) el.value = cfg.wsUrl;
     }
+    if (cfg.azFilter)                  azFilter    = cfg.azFilter;
+    if (cfg.playSpeed !== undefined)   playSpeed   = cfg.playSpeed;
+    if (cfg.loopEnabled !== undefined) loopEnabled = cfg.loopEnabled;
+
+    // Restore large data from IDB
+    if (cfg.source === 'file' && cfg.logMeta?.length) {
+      await restoreLogsFromIdb(cfg.logMeta, cfg.activeLogIdx ?? -1);
+    } else {
+      await restoreWsFromIdb(cfg);
+    }
+
     // Defer DOM-dependent restoration until after page is fully rendered
     requestAnimationFrame(() => {
       try {
-        // Re-apply display opts to buttons
+        // Display opts → buttons
         for (const [k,v] of Object.entries(opts)) {
-          const btn = document.querySelector(`.opt-btn[data-opt="${k}"]`);
-          if (btn) btn.classList.toggle('on', v);
+          document.querySelector(`.opt-btn[data-opt="${k}"]`)?.classList.toggle('on', v);
         }
-        // Re-apply graph window button highlight
+        // Graph window button
         const labels = { 10:'10s', 30:'30s', 120:'2min', 600:'10min', '-1':'ALL' };
         const lbl = labels[String(graphWindow)];
         document.querySelectorAll('.gtb').forEach(b => b.classList.toggle('on', b.textContent.trim()===lbl));
-        // Sidebar traces
+        // Sidebar traces & graph
         renderTraceSidebar();
         renderGraphPills();
         redrawGraph();
+        // Active page
+        if (cfg.activePage) showPage(cfg.activePage);
+        // Source tabs
+        setSource(cfg.source === 'file' ? 'file' : 'ws');
+        // Speed selector
+        const speedSel = document.getElementById('speed-sel');
+        if (speedSel && cfg.playSpeed !== undefined) speedSel.value = String(cfg.playSpeed);
+        // Loop button
+        document.getElementById('btn-loop')?.classList.toggle('active', loopEnabled);
+        // azFilter buttons
+        ['all','unknown','known','diff'].forEach(x =>
+          document.getElementById('azf-'+x)?.classList.toggle('on', x===azFilter));
       } catch(e2) { console.warn('lsLoad deferred DOM failed:', e2); }
     });
     return true;
   } catch(e) { console.warn('lsLoad failed:', e); return false; }
 }
 
+async function restoreWsFromIdb(cfg) {
+  const allFrames = await idbGetAll();
+  if (!allFrames.length) return;
+  frameBuf = allFrames;
+  dvrIdx   = Math.min(cfg.wsDvrIdx ?? frameBuf.length - 1, frameBuf.length - 1);
+  isLive = false; isPlaying = false;
+  if (cfg.wsKnownIds?.length) {
+    knownIds    = new Set(cfg.wsKnownIds);
+    filteredIds = new Set(cfg.wsFilteredIds?.length ? cfg.wsFilteredIds : cfg.wsKnownIds);
+  } else {
+    for (const f of frameBuf) knownIds.add(f.id);
+    filteredIds = new Set(knownIds);
+  }
+  requestAnimationFrame(() => {
+    rebuildIdGrid();
+    rebuildPivotToIndex(dvrIdx);
+    updatePlayBtn(); updateScrub(); updateModeBadge();
+    if (frameBuf[dvrIdx]) updatePlayheadDisplay(frameBuf[dvrIdx]);
+  });
+}
+
+async function restoreLogsFromIdb(logMeta, savedActiveIdx) {
+  const idbLogs = await idbLoadAllLogs();
+  const idbMap  = Object.fromEntries(idbLogs.map(e => [e.id, e]));
+  for (const meta of logMeta) {
+    const entry = idbMap[meta.id];
+    if (!entry?.frames?.length) continue;
+    const frames = entry.frames;
+    logs.push({
+      id: meta.id, name: meta.name, fileSize: meta.fileSize,
+      frameCount: meta.frameCount || frames.length,
+      frames, frameBuf: frames,
+      dvrIdx:    Math.min(meta.dvrIdx || 0, frames.length - 1),
+      isPlaying: false, isLive: false,
+      pivotData: {}, graphHistory: {},
+      filteredIds: meta.filteredIds || [...new Set(frames.map(f => f.id))],
+      knownIds:    meta.knownIds    || [...new Set(frames.map(f => f.id))],
+      bdfId: meta.bdfId || null,
+    });
+  }
+  if (!logs.length) return;
+  const targetIdx = (savedActiveIdx >= 0 && savedActiveIdx < logs.length) ? savedActiveIdx : 0;
+  activeLogIdx = targetIdx;
+  source = 'file';
+  const log = logs[targetIdx];
+  fileFrames  = log.frames.slice();
+  frameBuf    = log.frameBuf.slice();
+  dvrIdx      = log.dvrIdx;
+  isPlaying   = false; isLive = false;
+  filteredIds = new Set(log.filteredIds);
+  knownIds    = new Set(log.knownIds);
+  syncAnnotationsToLog();
+  requestAnimationFrame(() => {
+    document.getElementById('dropzone')?.classList.add('has-file');
+    setFileStatusUI('file', `${log.frameCount.toLocaleString()} frames`);
+    rebuildIdGrid();
+    rebuildPivotToIndex(dvrIdx);
+    updatePlayBtn(); updateScrub(); updateModeBadge();
+    if (frameBuf[dvrIdx]) updatePlayheadDisplay(frameBuf[dvrIdx]);
+    renderLogBadges();
+    if (document.getElementById('page-analyze')?.classList.contains('active')) refreshAnalyze();
+  });
+}
+
 function buildConfigObj() {
+  if (activeLogIdx >= 0) saveActiveLogState();
   return {
-    version: '0.6.8',
+    version: '0.7.0',
     savedAt: new Date().toISOString(),
     traces,
     graphWindow,
@@ -2955,6 +3257,24 @@ function buildConfigObj() {
     annotations,
     wsUrl: document.getElementById('ws-url')?.value || '',
     dashboard: [],
+    activePage: document.querySelector('.page.active')?.id?.replace('page-', '') || 'monitor',
+    source,
+    activeLogIdx,
+    azFilter,
+    playSpeed,
+    loopEnabled,
+    wsFilteredIds: source === 'ws' ? [...filteredIds] : [],
+    wsKnownIds:    source === 'ws' ? [...knownIds]    : [],
+    wsDvrIdx:      source === 'ws' ? dvrIdx           : 0,
+    bdfs,
+    logMeta: logs.map(log => ({
+      id: log.id, name: log.name, fileSize: log.fileSize,
+      frameCount: log.frameCount,
+      filteredIds: Array.isArray(log.filteredIds) ? log.filteredIds : [...(log.filteredIds || [])],
+      knownIds:    Array.isArray(log.knownIds)    ? log.knownIds    : [...(log.knownIds    || [])],
+      dvrIdx: log.dvrIdx || 0,
+      bdfId: log.bdfId || null,
+    })),
   };
 }
 
@@ -3050,6 +3370,19 @@ function initConfigDropzone() {
 
 // annotations: { [id]: { name, comment, fields:[{bits, byteIdx, label, type, formula, enumMap}] } }
 let annotations = {};
+// bdfs: { [bdfId]: { name: string, annotations: { [id]: annotation } } }
+let bdfs = {};
+
+// Sets annotations to reference the active log's BDF annotations (or {} if none assigned)
+function syncAnnotationsToLog() {
+  const log = activeLogIdx >= 0 ? logs[activeLogIdx] : null;
+  if (log && log.bdfId && bdfs[log.bdfId]) {
+    annotations = bdfs[log.bdfId].annotations;
+  } else {
+    annotations = {};
+  }
+}
+
 let azFilter = 'all';
 let azEditingId = null;
 let azEditingDraft = null; // deep copy, discarded on cancel
@@ -3187,6 +3520,7 @@ function setAzFilter(f) {
     document.getElementById('azf-'+x)?.classList.toggle('on', x===f);
   });
   refreshAnalyze();
+  lsAutosave();
 }
 
 // ── Main render ───────────────────────────────────────────────
@@ -3357,20 +3691,22 @@ function buildAzRow(id, stat) {
     if (spark.length >= 2) {
       const vMin = bs.min, vMax = bs.max;
       const vRange = vMax - vMin || 1;
-      const pts = spark.map((v, si) => {
-        const x = (si / (spark.length - 1)) * W;
-        const y = H - 2 - ((v - vMin) / vRange) * (H - 4);
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
-      }).join(' ');
+      const coords = spark.map((v, si) => ({
+        x: (si / (spark.length - 1)) * W,
+        y: H - 2 - ((v - vMin) / vRange) * (H - 4)
+      }));
       const lineColor = isConst ? '#2a4860' : color;
-      sparkSvg = `<polyline points="${pts}" fill="none" stroke="${lineColor}" stroke-width="1.5" stroke-linejoin="round"/>`;
+      // Step-after path: hard edges at value changes (no interpolation ramp)
+      let d = `M ${coords[0].x.toFixed(1)},${coords[0].y.toFixed(1)}`;
+      for (let i = 1; i < coords.length; i++) {
+        d += ` H ${coords[i].x.toFixed(1)} V ${coords[i].y.toFixed(1)}`;
+      }
+      sparkSvg = `<path d="${d}" fill="none" stroke="${lineColor}" stroke-width="1.5"/>`;
       if (!isConst) {
-        // fill area under line
-        const first = spark[0], last = spark[spark.length-1];
-        const x0 = 0, xN = W;
-        const y0 = H - 2 - ((first - vMin) / vRange) * (H - 4);
-        const yN = H - 2 - ((last  - vMin) / vRange) * (H - 4);
-        sparkSvg = `<polygon points="0,${H} ${pts} ${W},${H}" fill="${lineColor}" fill-opacity="0.12"/>` + sparkSvg;
+        const fillD = `M 0,${H} V ${coords[0].y.toFixed(1)}` +
+          coords.slice(1).map(c => ` H ${c.x.toFixed(1)} V ${c.y.toFixed(1)}`).join('') +
+          ` H ${W} V ${H} Z`;
+        sparkSvg = `<path d="${fillD}" fill="${lineColor}" fill-opacity="0.12"/>` + sparkSvg;
       }
     } else if (spark.length === 1) {
       // single value — flat line
@@ -3849,6 +4185,7 @@ function showPage(p) {
   document.getElementById('tab-analyze').className = 'mode-tab' + (p==='analyze' ? ' active-analyze':'');
   document.getElementById('tab-sim').className     = 'mode-tab' + (p==='sim'     ? ' active-sim':'');
   if (p==='analyze') refreshAnalyze();
+  lsAutosave();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -3874,8 +4211,8 @@ function showPage(p) {
 
   initDropzone();
   initConfigDropzone();
-  // Restore config from localStorage
-  lsLoad();
+  // Restore config from localStorage (async: also loads IDB frames/logs)
+  await lsLoad();
   canInit();
   // Sync header column visibility and button states to opts defaults
   requestAnimationFrame(() => {
