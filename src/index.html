@@ -3538,6 +3538,7 @@ function openAzModal(id) {
   azEditingDraft = JSON.parse(JSON.stringify(src));
   document.getElementById('az-modal-id').textContent = `0x${id}`;
   document.getElementById('az-modal').classList.add('open');
+  document.getElementById('az-modal-body').scrollTop = 0;
   renderAzModal(id);
 }
 
