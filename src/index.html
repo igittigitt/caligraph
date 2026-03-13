@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CaLiGRAPH v1.1.6</title>
+<title>CaLiGRAPH v1.1.8</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&display=swap');
 
@@ -135,6 +135,19 @@ body::after {
   min-width:0; cursor:pointer;
 }
 .log-bdf-select:focus { outline:none; border-color:var(--green); }
+
+/* ─── WS BDF ROW ─── */
+#ws-bdf-row {
+  display:flex; align-items:center; gap:5px; padding:5px 0 2px;
+  margin-top:6px;
+}
+#ws-bdf-row .log-bdf-label { font-size:9px; color:var(--text3); white-space:nowrap; letter-spacing:1px; flex-shrink:0; }
+#ws-bdf-row .log-bdf-select {
+  flex:1; background:var(--bg2); border:1px solid var(--border); color:var(--text2);
+  font-family:var(--mono); font-size:9px; padding:1px 3px; border-radius:2px;
+  min-width:0; cursor:pointer;
+}
+#ws-bdf-row .log-bdf-select:focus { outline:none; border-color:var(--green); }
 
 /* ─── LEFT SIDEBAR ─── */
 .mon-sidebar {
@@ -670,7 +683,7 @@ body::after {
 
 <!-- HEADER -->
 <header class="app-header">
-  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.1.6</div></div>
+  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.1.8</div></div>
   <div class="mode-tabs">
     <div class="mode-tab active-monitor" id="tab-monitor" onclick="showPage('monitor')">
       <span>📡</span> Monitor
@@ -736,6 +749,11 @@ body::after {
           <div class="dot off" id="sb-dot"></div>
           <span id="sb-conn-text">Not connected</span>
           <span id="sniffer-badge" style="display:none;margin-left:auto;padding:2px 6px;border-radius:3px;font-size:9px;font-family:var(--display);font-weight:600;letter-spacing:1px;"></span>
+        </div>
+        <!-- WS BDF selector -->
+        <div id="ws-bdf-row">
+          <span class="log-bdf-label">BDF</span>
+          <select class="log-bdf-select" id="ws-bdf-select" title="Bus-Definitions-File zuordnen"></select>
         </div>
         <!-- CAN Sniffer Setup -->
         <div id="can-setup" style="margin-top:10px;display:none;">
@@ -1296,6 +1314,7 @@ function parseLine(line) {
 // APP STATE
 // ═══════════════════════════════════════════════════════════════
 let source = 'ws';         // 'ws' | 'file'
+let wsBdfId = null;        // BDF assigned to WS mode
 let ws = null;
 let wsConnected = false;
 
@@ -1346,6 +1365,7 @@ function setSource(s) {
   document.getElementById('ws-controls').style.display   = s==='ws'   ? '' : 'none';
   document.getElementById('file-controls').style.display = s==='file' ? '' : 'none';
   if (s==='ws' && ws) { /* keep ws */ }
+  syncAnnotationsToLog();
   lsAutosave();
 }
 
@@ -1988,6 +2008,11 @@ function scrubEnd() {
   window.removeEventListener('mouseup', scrubEnd);
   window.removeEventListener('touchmove', scrubMove);
   window.removeEventListener('touchend', scrubEnd);
+  // Rebuild pivot once at the final position
+  if (frameBuf.length > 0) {
+    rebuildPivotToIndex(dvrIdx);
+    updatePlayBtn(); updateModeBadge();
+  }
 }
 function scrubMove(e) {
   if (!scrubDragging) return;
@@ -2001,12 +2026,13 @@ function scrubMove(e) {
     isPlaying = false;
     clearInterval(dvrReplayTimer); dvrReplayTimer = null;
     dvrIdx = Math.floor(pct * (frameBuf.length - 1));
-    rebuildPivotToIndex(dvrIdx);
+    // During drag: only update visual feedback — skip expensive pivot rebuild
     updateTransportClock(frameBuf[dvrIdx]);
-    updateScrub(); updatePlayBtn(); updateModeBadge();
+    updateScrub();
   }
   e.preventDefault();
 }
+
 
 // ═══════════════════════════════════════════════════════════════
 // CLOCK
@@ -2705,6 +2731,8 @@ function renderLogBadges() {
     diffBtn.style.display = logs.length >= 2 ? '' : 'none';
     if (logs.length < 2 && azFilter === 'diff') setAzFilter('all');
   }
+  // Keep WS BDF dropdown in sync (new BDFs may have been created)
+  renderWsBdfSelect();
 }
 
 function assignBdfToLog(logIdx, bdfId) {
@@ -3148,6 +3176,7 @@ async function lsLoad() {
     if (cfg.graphWindow !== undefined)  graphWindow = cfg.graphWindow;
     if (cfg.annotations)               annotations = cfg.annotations;
     if (cfg.bdfs)                      bdfs        = cfg.bdfs;
+    if (cfg.wsBdfId !== undefined)     wsBdfId     = cfg.wsBdfId;
     if (cfg.displayOpts) {
       for (const [k,v] of Object.entries(cfg.displayOpts)) { if (k in opts) opts[k] = v; }
     }
@@ -3193,6 +3222,8 @@ async function lsLoad() {
         // azFilter buttons
         ['all','unknown','known','diff'].forEach(x =>
           document.getElementById('azf-'+x)?.classList.toggle('on', x===azFilter));
+        // WS BDF select
+        renderWsBdfSelect();
       } catch(e2) { console.warn('lsLoad deferred DOM failed:', e2); }
     });
     return true;
@@ -3282,6 +3313,7 @@ function buildConfigObj() {
     wsFilteredIds: source === 'ws' ? [...filteredIds] : [],
     wsKnownIds:    source === 'ws' ? [...knownIds]    : [],
     wsDvrIdx:      source === 'ws' ? dvrIdx           : 0,
+    wsBdfId,
     bdfs,
     // Active log: read current global state directly (no frame copies needed).
     // Inactive logs: use cached values stored during last switchToLog().
@@ -3391,13 +3423,42 @@ let annotations = {};
 // bdfs: { [bdfId]: { name: string, annotations: { [id]: annotation } } }
 let bdfs = {};
 
-// Sets annotations to reference the active log's BDF annotations (or {} if none assigned)
+// Sets annotations to reference the active log's (or WS) BDF annotations (or {} if none assigned)
 function syncAnnotationsToLog() {
+  if (source === 'ws') {
+    annotations = (wsBdfId && bdfs[wsBdfId]) ? bdfs[wsBdfId].annotations : {};
+    return;
+  }
   const log = activeLogIdx >= 0 ? logs[activeLogIdx] : null;
   if (log && log.bdfId && bdfs[log.bdfId]) {
     annotations = bdfs[log.bdfId].annotations;
   } else {
     annotations = {};
+  }
+}
+
+function renderWsBdfSelect() {
+  const sel = document.getElementById('ws-bdf-select');
+  if (!sel) return;
+  sel.innerHTML = '';
+
+  const optNone = document.createElement('option');
+  optNone.value = '';
+  optNone.textContent = '—';
+  if (!wsBdfId) optNone.selected = true;
+  sel.appendChild(optNone);
+
+  const optNew = document.createElement('option');
+  optNew.value = '__new__';
+  optNew.textContent = 'Neues BDF anlegen...';
+  sel.appendChild(optNew);
+
+  for (const [id, bdf] of Object.entries(bdfs)) {
+    const opt = document.createElement('option');
+    opt.value = id;
+    opt.textContent = bdf.name;
+    if (id === wsBdfId) opt.selected = true;
+    sel.appendChild(opt);
   }
 }
 
@@ -4221,6 +4282,30 @@ function showPage(p) {
 
   initDropzone();
   initConfigDropzone();
+
+  // WS BDF select change handler
+  document.getElementById('ws-bdf-select')?.addEventListener('change', e => {
+    const val = e.target.value;
+    if (val === '__new__') {
+      dlgPrompt('BDF-Name eingeben:', 'Neues BDF anlegen', '').then(name => {
+        if (!name) { renderWsBdfSelect(); return; }
+        const bdfId = 'bdf_' + Date.now();
+        bdfs[bdfId] = { name, annotations: {} };
+        wsBdfId = bdfId;
+        syncAnnotationsToLog();
+        renderWsBdfSelect();
+        renderLogBadges(); // update existing log dropdowns with new BDF
+        lsAutosave();
+        if (document.getElementById('page-analyze').classList.contains('active')) refreshAnalyze();
+      });
+    } else {
+      wsBdfId = val || null;
+      syncAnnotationsToLog();
+      lsAutosave();
+      if (document.getElementById('page-analyze').classList.contains('active')) refreshAnalyze();
+    }
+  });
+
   // Restore config from localStorage (async: also loads IDB frames/logs)
   await lsLoad();
   canInit();
