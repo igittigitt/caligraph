@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CaLiGRAPH v1.1.9</title>
+<title>CaLiGRAPH v1.2.0</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&display=swap');
 
@@ -683,7 +683,7 @@ body::after {
 
 <!-- HEADER -->
 <header class="app-header">
-  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.1.9</div></div>
+  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.2.0</div></div>
   <div class="mode-tabs">
     <div class="mode-tab active-monitor" id="tab-monitor" onclick="showPage('monitor')">
       <span>📡</span> Monitor
@@ -1586,7 +1586,7 @@ async function handleFileObject(file) {
       updatePlayheadDisplay(frameBuf[0]);
       saveActiveLogState();
       newLog.frameCount = frameBuf.length;
-      idbSaveLog(newLog);
+      setTimeout(() => idbSaveLog(newLog), 0); // defer: don't block main thread
       lsAutosave();
       renderLogBadges();
       if (document.getElementById('page-analyze').classList.contains('active')) refreshAnalyze();
@@ -1856,8 +1856,20 @@ function stepFrames(delta) {
   isLive = false;
   clearInterval(dvrReplayTimer);
   dvrReplayTimer = null;
-  dvrIdx = Math.max(0, Math.min(frameBuf.length - 1, dvrIdx + delta));
-  rebuildPivotToIndex(dvrIdx);
+  const newIdx = Math.max(0, Math.min(frameBuf.length - 1, dvrIdx + delta));
+  if (newIdx > dvrIdx) {
+    // Forward: apply incrementally — no full rebuild
+    for (let i = dvrIdx + 1; i <= newIdx; i++) {
+      applyFrameToPivot(frameBuf[i], false);
+      pushGraphPoint(frameBuf[i], true);
+    }
+    dvrIdx = newIdx;
+    redrawGraph();
+  } else {
+    // Backward: full rebuild required
+    dvrIdx = newIdx;
+    rebuildPivotToIndex(dvrIdx);
+  }
   updateTransportClock(frameBuf[dvrIdx]);
   updateScrub();
   updatePlayBtn();
@@ -1866,14 +1878,32 @@ function stepFrames(delta) {
 
 function rebuildPivotToIndex(upTo) {
   pivotData = {};
-  document.getElementById('pivot-body').innerHTML = '';
   graphHistory = {};
   const end = Math.min(upTo, frameBuf.length - 1);
-  // For performance: only rebuild last graphWindow*maxHz frames for graph,
-  // but full pivot needs last-state-per-id → scan all
+  // Data pass: accumulate pivotData without any DOM work
   for (let i = 0; i <= end; i++) {
-    applyFrameToPivot(frameBuf[i], false);
-    pushGraphPoint(frameBuf[i], true);
+    const frame = frameBuf[i];
+    if (!filteredIds.has(frame.id)) continue;
+    const prev = pivotData[frame.id];
+    const info = KNOWN[frame.id];
+    let freq = prev?.freq;
+    if (prev && frame.ts > prev.lastTs) {
+      const dt = (frame.ts - prev.lastTs) * 1000;
+      const avgMs = (prev.freq?.avgMs || dt) * 0.85 + dt * 0.15;
+      freq = { avgMs, hz: 1000 / avgMs };
+    }
+    pivotData[frame.id] = {
+      bytes: frame.bytes, dataHex: frame.dataHex, lastTs: frame.ts,
+      count: (prev?.count || 0) + 1, freq,
+      decoded: info?.decode ? info.decode(frame.bytes) : null,
+      prevBytes: null,
+    };
+    pushGraphPoint(frame, true);
+  }
+  // DOM pass: render each visible ID exactly once
+  document.getElementById('pivot-body').innerHTML = '';
+  for (const id of [...knownIds].sort()) {
+    if (filteredIds.has(id) && pivotData[id]) renderPivotRow(id, false);
   }
   redrawGraph();
 }
