@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CaLiGRAPH v1.2.1</title>
+<title>CaLiGRAPH v1.2.5</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&display=swap');
 
@@ -93,6 +93,26 @@ body::after {
 .dot.paused  { background:var(--yellow); }
 .dot.off     { background:var(--text3); }
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* ─── CONNECTION QUALITY ─── */
+#conn-quality-section { display:none; }
+.cq-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:5px; }
+.cq-cell { background:var(--panel); border:1px solid var(--border2); border-radius:5px;
+           padding:6px 8px; display:flex; flex-direction:column; align-items:center; gap:2px; }
+.cq-label { font-family:var(--display); font-size:8px; letter-spacing:1px; color:var(--text3);
+            text-transform:uppercase; white-space:nowrap; }
+.cq-value { font-family:var(--mono); font-size:12px; font-weight:700; color:var(--text2);
+            white-space:nowrap; }
+.cq-value.good { color:var(--green); }
+.cq-value.warn { color:var(--yellow); }
+.cq-value.bad  { color:var(--red); }
+/* Signal bars */
+.sig-bars { display:inline-flex; align-items:flex-end; gap:2px; height:16px; }
+.sig-bar   { display:inline-block; width:4px; border-radius:1px; background:var(--border2); }
+.sig-bar.b1{height:4px;} .sig-bar.b2{height:7px;} .sig-bar.b3{height:10px;}
+.sig-bar.b4{height:13px;} .sig-bar.b5{height:16px;}
+.sig-bar.on { background:currentColor; }
+.cq-rssi-dbm { font-family:var(--mono); font-size:9px; color:var(--text3); white-space:nowrap; }
 
 /* ─── LAYOUT ─── */
 .app-body { display:flex; flex-direction:row; height:calc(100vh - 52px); }
@@ -683,7 +703,7 @@ body::after {
 
 <!-- HEADER -->
 <header class="app-header">
-  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.2.1</div></div>
+  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.2.5</div></div>
   <div class="mode-tabs">
     <div class="mode-tab active-monitor" id="tab-monitor" onclick="showPage('monitor')">
       <span>📡</span> Monitor
@@ -749,6 +769,26 @@ body::after {
           <div class="dot off" id="sb-dot"></div>
           <span id="sb-conn-text">Not connected</span>
           <span id="sniffer-badge" style="display:none;margin-left:auto;padding:2px 6px;border-radius:3px;font-size:9px;font-family:var(--display);font-weight:600;letter-spacing:1px;"></span>
+        </div>
+        <!-- Connection Quality -->
+        <div class="sb-section" id="conn-quality-section" style="padding:10px 14px;">
+          <div class="sb-title" style="margin-bottom:8px;">Link Quality</div>
+          <div class="cq-grid">
+            <div class="cq-cell">
+              <span class="cq-label">Latenz</span>
+              <span class="cq-value" id="cq-rtt">—</span>
+            </div>
+            <div class="cq-cell">
+              <span class="cq-label">WLAN</span>
+              <div id="cq-rssi" style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+                <span class="cq-value">—</span>
+              </div>
+            </div>
+            <div class="cq-cell">
+              <span class="cq-label">Durchsatz</span>
+              <span class="cq-value" id="cq-tput">—</span>
+            </div>
+          </div>
         </div>
         <!-- WS BDF selector -->
         <div id="ws-bdf-row">
@@ -1373,6 +1413,10 @@ function setSource(s) {
 // DEBUG
 // ═══════════════════════════════════════════════════════════════
 let dbgRx=0, dbgParsed=0, dbgFailed=0;
+// Connection quality state
+let cqPingTs=0, cqRtt=null, cqPingTimer=null, cqTputTimer=null;
+let cqRxBytes=0, cqPrevBytes=0, cqTputSamples=[];
+let cqRssi=null, cqPongPending=false, cqPingSupported=true;
 let dbgVisible=false;
 
 function dbgLog(msg, color) {
@@ -1394,6 +1438,82 @@ function dbgUpdateStats() {
   document.getElementById('dbg-rx').textContent     = dbgRx;
   document.getElementById('dbg-parsed').textContent = dbgParsed;
   document.getElementById('dbg-failed').textContent = dbgFailed;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CONNECTION QUALITY MONITOR
+// ═══════════════════════════════════════════════════════════════
+function cqRssiLevel(dbm) {
+  if (dbm > -60) return 5;
+  if (dbm > -70) return 4;
+  if (dbm > -75) return 3;
+  if (dbm > -85) return 2;
+  return 1;
+}
+
+function updateQualityUI() {
+  // Latency
+  const rttEl = document.getElementById('cq-rtt');
+  if (cqRtt === null) { rttEl.textContent='—'; rttEl.className='cq-value'; }
+  else { rttEl.textContent=cqRtt+' ms'; rttEl.className='cq-value '+(cqRtt<50?'good':cqRtt<150?'warn':'bad'); }
+
+  // RSSI — 5-bar signal display
+  const rssiEl = document.getElementById('cq-rssi');
+  const makeBars = (lvl, color) => {
+    let b = `<span class="sig-bars"${color?' style="color:'+color+'"':''}>`;
+    for (let i=1; i<=5; i++) b += `<span class="sig-bar b${i}${i<=lvl?' on':''}"></span>`;
+    return b + '</span>';
+  };
+  if (!cqPingSupported) {
+    rssiEl.innerHTML = makeBars(0,'') + '<span class="cq-rssi-dbm">(--)</span>';
+  } else if (cqRssi === null) {
+    rssiEl.innerHTML = '<span class="cq-value">—</span>';
+  } else {
+    const lvl = cqRssiLevel(cqRssi);
+    const colors = ['','var(--red)','var(--orange)','var(--yellow)','#8fbc5a','var(--green)'];
+    rssiEl.innerHTML = makeBars(lvl, colors[lvl]) + `<span class="cq-rssi-dbm">(${cqRssi} dBm)</span>`;
+  }
+
+  // Throughput
+  const tputEl = document.getElementById('cq-tput');
+  if (cqTputSamples.length===0) { tputEl.textContent='—'; tputEl.className='cq-value'; }
+  else {
+    const avg = cqTputSamples.reduce((a,b)=>a+b,0)/cqTputSamples.length;
+    tputEl.textContent = avg>=1024 ? (avg/1024).toFixed(1)+' kB/s' : Math.round(avg)+' B/s';
+    tputEl.className='cq-value good';
+  }
+}
+
+function startQualityMonitor() {
+  document.getElementById('conn-quality-section').style.display='block';
+  cqRxBytes=0; cqPrevBytes=0; cqTputSamples=[];
+  cqRtt=null; cqRssi=null; cqPongPending=false; cqPingSupported=true;
+  updateQualityUI();
+  cqPingTimer = setInterval(() => {
+    if (!wsConnected || !ws || !cqPingSupported) return;
+    cqPingTs=Date.now(); cqPongPending=true;
+    ws.send('PING\n');
+    setTimeout(()=>{
+      if(cqPongPending){
+        cqPongPending=false;
+        if(cqRtt===null){ cqPingSupported=false; } // no response ever → disable
+        updateQualityUI();
+      }
+    },5000);
+  }, 3000);
+  cqTputTimer = setInterval(() => {
+    const delta=cqRxBytes-cqPrevBytes; cqPrevBytes=cqRxBytes;
+    cqTputSamples.push(delta);
+    if(cqTputSamples.length>3) cqTputSamples.shift();
+    updateQualityUI();
+  }, 1000);
+}
+
+function stopQualityMonitor() {
+  clearInterval(cqPingTimer); cqPingTimer=null;
+  clearInterval(cqTputTimer); cqTputTimer=null;
+  cqPongPending=false;
+  document.getElementById('conn-quality-section').style.display='none';
 }
 
 function toggleDebug() {
@@ -1463,6 +1583,7 @@ function wsConnect() {
       ws.send('IDENTIFY');
       dbgLog(`→ Sent: IDENTIFY`, 'var(--accent)');
     }, 200);
+    startQualityMonitor();
   };
   ws.onclose = e => {
     wsConnected = false;
@@ -1470,6 +1591,7 @@ function wsConnect() {
     document.getElementById('btn-connect').textContent = 'CONNECT';
     document.getElementById('btn-connect').classList.replace('red','green');
     dbgLog(`✗ Closed (code=${e.code} reason=${e.reason||'—'})`, 'var(--red)');
+    stopQualityMonitor();
   };
   ws.onerror = e => {
     wsConnected = false;
@@ -1478,9 +1600,22 @@ function wsConnect() {
   };
   ws.onmessage = e => {
     dbgRx++;
+    cqRxBytes += (typeof e.data==='string') ? e.data.length : (e.data.byteLength||0);
     const raw = typeof e.data === 'string' ? e.data : '[binary]';
     const preview = raw.substring(0, 120).replace(/\n/g, '↵').replace(/\r/g,'⏎');
     dbgLog(`← [${dbgRx}] ${preview}`, 'var(--text)');
+
+    // PONG response: "# PONG" or "# PONG (-65 dBm)" — measures RTT and optionally updates RSSI
+    const pongM = raw.trim().match(/^#\s*PONG(?:\s*\((-?\d+)\s*dBm\))?$/i);
+    if (pongM) {
+      if (cqPongPending) {
+        cqRtt = Date.now()-cqPingTs;
+        cqPongPending = false;
+        if (pongM[1] !== undefined) cqRssi = parseInt(pongM[1], 10);
+        updateQualityUI();
+      }
+      return;
+    }
 
     // Check for IDENTIFY response
     // Format: "Type: CAN, Version: 1.0.0, Buses: HS0, HS1, MS0"
@@ -1514,6 +1649,7 @@ function wsConnect() {
       }
     }
     if (parsedThis > 0) {
+      cqLastFrameTs = Date.now();
       dbgLog(`  ↳ parsed ${parsedThis} frame(s)`, 'var(--green)');
     }
     dbgUpdateStats();
