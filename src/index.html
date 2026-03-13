@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CaLiGRAPH v1.2.9</title>
+<title>CaLiGRAPH v1.2.10</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&display=swap');
 
@@ -707,7 +707,7 @@ body::after {
 
 <!-- HEADER -->
 <header class="app-header">
-  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.2.9</div></div>
+  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.2.10</div></div>
   <div class="mode-tabs">
     <div class="mode-tab active-monitor" id="tab-monitor" onclick="showPage('monitor')">
       <span>📡</span> Monitor
@@ -2014,7 +2014,7 @@ function stepFrames(delta) {
   if (newIdx > dvrIdx) {
     // Forward: apply incrementally — no full rebuild
     for (let i = dvrIdx + 1; i <= newIdx; i++) {
-      applyFrameToPivot(frameBuf[i], false);
+      applyFrameToPivot(frameBuf[i], i === newIdx);
       pushGraphPoint(frameBuf[i], true);
     }
     dvrIdx = newIdx;
@@ -2034,8 +2034,8 @@ function rebuildPivotToIndex(upTo) {
   pivotData = {};
   graphHistory = {};
   const end = Math.min(upTo, frameBuf.length - 1);
-  // Data pass: accumulate pivotData without any DOM work
-  for (let i = 0; i <= end; i++) {
+  // Data pass: accumulate pivotData up to (but not including) the target frame
+  for (let i = 0; i < end; i++) {
     const frame = frameBuf[i];
     if (!filteredIds.has(frame.id)) continue;
     const prev = pivotData[frame.id];
@@ -2054,10 +2054,15 @@ function rebuildPivotToIndex(upTo) {
     };
     pushGraphPoint(frame, true);
   }
-  // DOM pass: render each visible ID exactly once
+  // DOM pass: render each visible ID at the pre-target state
   document.getElementById('pivot-body').innerHTML = '';
   for (const id of [...knownIds].sort()) {
     if (filteredIds.has(id) && pivotData[id]) renderPivotRow(id, false);
+  }
+  // Apply the target frame with animation to show highlights
+  if (end >= 0 && frameBuf[end]) {
+    applyFrameToPivot(frameBuf[end], true);
+    pushGraphPoint(frameBuf[end], true);
   }
   redrawGraph();
 }
