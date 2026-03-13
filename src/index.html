@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CaLiGRAPH v1.2.6</title>
+<title>CaLiGRAPH v1.2.9</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&display=swap');
 
@@ -214,6 +214,7 @@ body::after {
 .btn.orange { border-color:var(--orange); color:var(--orange); background:rgba(255,140,0,0.08); }
 .btn.red { border-color:var(--red); color:var(--red); background:rgba(255,51,85,0.08); }
 .btn.sm { padding:4px 9px; font-size:10px; }
+.btn:disabled { opacity:0.28; cursor:not-allowed; pointer-events:none; }
 
 .conn-status { font-size:11px; color:var(--text2); display:flex; align-items:center; gap:6px; margin-top:6px; min-height:18px; }
 
@@ -312,6 +313,9 @@ body::after {
 .tb.play-btn:hover { background:rgba(0,255,136,0.18); }
 .tb.jump-live { border-color:var(--accent); color:var(--accent); font-size:11px; width:auto; padding:0 10px; font-family:var(--display); letter-spacing:1px; }
 .tb.jump-live.at-live { background:rgba(0,200,255,0.15); }
+.tb.disabled { opacity:0.28; cursor:not-allowed; pointer-events:none; }
+.scrub-wrap.disabled { opacity:0.28; cursor:not-allowed; pointer-events:none; }
+.speed-sel:disabled { opacity:0.28; cursor:not-allowed; }
 
 .speed-sel {
   background:var(--panel); border:1px solid var(--border2); color:var(--orange);
@@ -703,7 +707,7 @@ body::after {
 
 <!-- HEADER -->
 <header class="app-header">
-  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.2.6</div></div>
+  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.2.9</div></div>
   <div class="mode-tabs">
     <div class="mode-tab active-monitor" id="tab-monitor" onclick="showPage('monitor')">
       <span>📡</span> Monitor
@@ -759,7 +763,7 @@ body::after {
       <!-- WS mode -->
       <div id="ws-controls">
         <div class="ws-row">
-          <input class="ws-input" id="ws-url" value="192.168.178.121" placeholder="IP oder Hostname (z.B. 192.168.0.1)">
+          <input class="ws-input" id="ws-url" value="192.168.178.121" placeholder="IP oder Hostname (z.B. 192.168.0.1)" oninput="updateWsControls()">
         </div>
         <div class="ws-row">
           <button class="btn green" id="btn-connect" onclick="wsToggle()" style="flex:1">CONNECT</button>
@@ -1986,6 +1990,20 @@ function updatePlayBtn() {
   document.getElementById('btn-play').textContent = isPlaying ? '⏸' : '▶';
 }
 
+function updateDvrControls() {
+  const on = frameBuf.length > 0;
+  document.querySelectorAll('.transport-btns .tb').forEach(el => el.classList.toggle('disabled', !on));
+  document.getElementById('btn-jump-live').classList.toggle('disabled', !on);
+  document.getElementById('scrub-wrap').classList.toggle('disabled', !on);
+  document.getElementById('speed-sel').disabled = !on;
+}
+
+function updateWsControls() {
+  const urlFilled = (document.getElementById('ws-url')?.value?.trim() || '') !== '';
+  document.getElementById('btn-connect').disabled = !wsConnected && !urlFilled;
+  document.getElementById('btn-clear-ws').disabled = frameBuf.length === 0;
+}
+
 function stepFrames(delta) {
   if (frameBuf.length === 0) return;
   isPlaying = false;
@@ -2142,6 +2160,8 @@ let scrubDragging = false;
 
 function updateScrub() {
   const total = frameBuf.length;
+  updateDvrControls();
+  updateWsControls();
   if (total === 0) return;
   const cur  = Math.min(dvrIdx, total - 1);
   const pct  = total > 1 ? (cur / (total - 1)) * 100 : 0;
@@ -2713,6 +2733,8 @@ async function clearBuffer() {
   traces = [];
   renderTraceSidebar();
   renderGraphPills();
+  updateDvrControls();
+  updateWsControls();
   document.getElementById('pivot-body').innerHTML = '';
   knownIds.clear(); filteredIds.clear();
   document.getElementById('id-grid').innerHTML = '';
@@ -4410,6 +4432,7 @@ function setConnUI(state, msg) {
   dot.className  = `dot ${s.cls}`;
   text.textContent = msg;
   updateModeBadge();
+  updateWsControls();
 }
 
 function setFileStatusUI(state, msg) {
@@ -4485,6 +4508,8 @@ function showPage(p) {
   await lsLoad();
   canInit();
   // Sync header column visibility and button states to opts defaults
+  updateDvrControls();
+  updateWsControls();
   requestAnimationFrame(() => {
     const headerMap = { decoded:'th-decoded', freq:'th-freq', age:'th-age', count:'th-count' };
     for (const [key, thId] of Object.entries(headerMap)) {
