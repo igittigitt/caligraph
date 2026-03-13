@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CaLiGRAPH v1.1.3</title>
+<title>CaLiGRAPH v1.1.5</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&display=swap');
 
@@ -294,9 +294,14 @@ body::after {
 .frame-info { font-size:10px; color:var(--text3); white-space:nowrap; }
 .frame-info span { color:var(--text2); }
 
-.export-group { margin-left:auto; display:flex; align-items:center; gap:5px; }
-.export-fmt-sel { background:var(--bg3); border:1px solid var(--border2); border-radius:4px; color:var(--text); font-size:10px; padding:3px 5px; font-family:var(--mono); cursor:pointer; }
-.export-fmt-sel:focus { outline:none; border-color:var(--accent); }
+.export-split-wrap { margin-left:auto; position:relative; display:flex; align-items:stretch; }
+.export-main-btn { border-radius:4px 0 0 4px !important; border-right:none !important; letter-spacing:.04em; }
+.export-caret-btn { border-radius:0 4px 4px 0 !important; padding:4px 8px !important; font-size:12px !important; line-height:1; border-left:1px solid rgba(255,255,255,.08) !important; }
+.export-flyout { display:none; position:absolute; top:calc(100% + 4px); right:0; background:var(--bg3); border:1px solid var(--border2); border-radius:5px; z-index:200; min-width:110px; box-shadow:0 6px 16px rgba(0,0,0,.4); overflow:hidden; }
+.export-flyout.open { display:block; }
+.export-flyout-item { padding:6px 12px; font-size:11px; font-family:var(--mono); color:var(--text2); cursor:pointer; white-space:nowrap; }
+.export-flyout-item:hover { background:var(--bg4); color:var(--text); }
+.export-flyout-item.sel { color:var(--accent); }
 
 /* Scrub row */
 .scrub-row { display:flex; align-items:center; gap:10px; }
@@ -665,7 +670,7 @@ body::after {
 
 <!-- HEADER -->
 <header class="app-header">
-  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.1.3</div></div>
+  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.1.5</div></div>
   <div class="mode-tabs">
     <div class="mode-tab active-monitor" id="tab-monitor" onclick="showPage('monitor')">
       <span>📡</span> Monitor
@@ -916,14 +921,16 @@ body::after {
         <div class="frame-info">Frame <span id="fi-cur">0</span> / <span id="fi-tot">0</span></div>
 
         <div class="tb jump-live" id="btn-jump-live" onclick="jumpToLive()" title="Jump to live">⚡ LIVE</div>
-        <div class="export-group">
-          <select class="export-fmt-sel" id="export-fmt">
-            <option value="candump">Candump</option>
-            <option value="lawicel">Lawicel</option>
-            <option value="csv">CSV</option>
-            <option value="human">Human</option>
-          </select>
-          <button class="btn sm" onclick="exportLog()">⬇ Export .log</button>
+        <div class="export-split-wrap">
+          <button class="btn sm export-main-btn" onclick="exportLog()">EXPORT LOG</button>
+          <button class="btn sm export-caret-btn" onclick="toggleExportFlyout(event)" title="Exportformat wählen">▾</button>
+          <div class="export-flyout" id="export-flyout">
+            <div class="export-flyout-item sel" data-fmt="candump" onclick="setExportFmt('candump')">Candump</div>
+            <div class="export-flyout-item" data-fmt="lawicel" onclick="setExportFmt('lawicel')">Lawicel</div>
+            <div class="export-flyout-item" data-fmt="csv" onclick="setExportFmt('csv')">CSV</div>
+            <div class="export-flyout-item" data-fmt="human" onclick="setExportFmt('human')">Human</div>
+          </div>
+          <input type="hidden" id="export-fmt" value="candump">
         </div>
       </div>
 
@@ -2442,6 +2449,17 @@ function formatFramesHuman(frames) {
   return txt;
 }
 
+function toggleExportFlyout(e) {
+  e.stopPropagation();
+  document.getElementById('export-flyout').classList.toggle('open');
+}
+function setExportFmt(val) {
+  document.getElementById('export-fmt').value = val;
+  document.querySelectorAll('.export-flyout-item').forEach(el => el.classList.toggle('sel', el.dataset.fmt === val));
+  document.getElementById('export-flyout').classList.remove('open');
+}
+document.addEventListener('click', () => document.getElementById('export-flyout')?.classList.remove('open'));
+
 async function exportLog() {
   const frames = source==='file' ? fileFrames : await idbGetAll();
   if (!frames.length) { dlgAlert('Keine Daten zum Exportieren.', 'Export'); return; }
@@ -3246,7 +3264,6 @@ async function restoreLogsFromIdb(logMeta, savedActiveIdx) {
 }
 
 function buildConfigObj() {
-  if (activeLogIdx >= 0) saveActiveLogState();
   return {
     version: '0.7.0',
     savedAt: new Date().toISOString(),
@@ -3266,12 +3283,14 @@ function buildConfigObj() {
     wsKnownIds:    source === 'ws' ? [...knownIds]    : [],
     wsDvrIdx:      source === 'ws' ? dvrIdx           : 0,
     bdfs,
-    logMeta: logs.map(log => ({
+    // Active log: read current global state directly (no frame copies needed).
+    // Inactive logs: use cached values stored during last switchToLog().
+    logMeta: logs.map((log, i) => ({
       id: log.id, name: log.name, fileSize: log.fileSize,
       frameCount: log.frameCount,
-      filteredIds: Array.isArray(log.filteredIds) ? log.filteredIds : [...(log.filteredIds || [])],
-      knownIds:    Array.isArray(log.knownIds)    ? log.knownIds    : [...(log.knownIds    || [])],
-      dvrIdx: log.dvrIdx || 0,
+      filteredIds: i === activeLogIdx ? [...filteredIds] : (Array.isArray(log.filteredIds) ? log.filteredIds : [...(log.filteredIds || [])]),
+      knownIds:    i === activeLogIdx ? [...knownIds]    : (Array.isArray(log.knownIds)    ? log.knownIds    : [...(log.knownIds    || [])]),
+      dvrIdx: i === activeLogIdx ? dvrIdx : (log.dvrIdx || 0),
       bdfId: log.bdfId || null,
     })),
   };
