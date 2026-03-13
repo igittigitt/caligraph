@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CaLiGRAPH v1.2.10</title>
+<title>CaLiGRAPH v1.2.13</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&display=swap');
 
@@ -707,7 +707,7 @@ body::after {
 
 <!-- HEADER -->
 <header class="app-header">
-  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.2.10</div></div>
+  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.2.13</div></div>
   <div class="mode-tabs">
     <div class="mode-tab active-monitor" id="tab-monitor" onclick="showPage('monitor')">
       <span>📡</span> Monitor
@@ -911,6 +911,7 @@ body::after {
         <div class="opt-btn on" data-opt="count" onclick="toggleOpt(this)">COUNT</div>
         <div class="opt-btn on" data-opt="hlIdChg" onclick="toggleOpt(this)">HIGHLIGHT-ID-CHG</div>
         <div class="opt-btn on" data-opt="hlByteChg" onclick="toggleOpt(this)">HIGHLIGHT-BYTE-CHG</div>
+        <div class="opt-btn" data-opt="fixpos" onclick="toggleOpt(this)">FIXPOS</div>
       </div>
     </div>
 
@@ -1382,7 +1383,7 @@ let filteredIds = new Set();
 let knownIds = new Set();
 
 // Display opts
-let opts = { hex:true, bin:false, dec:false, asc:true, delta:true, decoded:true, freq:true, age:false, count:true, hlIdChg:true, hlByteChg:true };
+let opts = { hex:true, bin:false, dec:false, asc:true, delta:true, decoded:true, freq:true, age:false, count:true, hlIdChg:true, hlByteChg:true, fixpos:false };
 let rowGlowTimers  = {};  // id → { raf, timeout }
 let byteGlowTimers = {};  // `${id}-${byteIdx}` → { raf, timeout }
 let bitGlowTimers  = {};  // `${id}-${byteIdx}-${bitIdx}` → { raf, timeout }
@@ -1838,6 +1839,50 @@ function applyGlow(el, key, store) {
   store[key] = { raf, timeout: 0 };
 }
 
+function renderPlaceholderRow(id) {
+  const info = KNOWN[id];
+  const color = info?.color || 'var(--text2)';
+  // Find the first frame for this ID to determine byte count
+  const firstFrame = frameBuf.find(f => f.id === id);
+  const byteCount = firstFrame ? firstFrame.bytes.length : 1;
+  const binPlaceholder = '<span class="bc-bit">·</span>'.repeat(8);
+  let bytesHtml = '';
+  for (let i = 0; i < byteCount; i++) {
+    bytesHtml += `<div class="byte-cell">
+      <div class="bc-idx">B${i}</div>
+      ${opts.hex ? `<div class="bc-hex" style="min-width:2ch;text-align:center">—</div>` : ''}
+      ${opts.bin ? `<div class="bc-bin">${binPlaceholder}</div>` : ''}
+      ${opts.dec ? `<div class="bc-dec" style="min-width:3ch;text-align:center">—</div>` : ''}
+      ${opts.asc ? `<div class="bc-asc" style="min-width:1ch;text-align:center">—</div>` : ''}
+    </div>`;
+  }
+  const rowHtml = `
+    <div class="pivot-row" style="opacity:0.35">
+      <div class="pr-id" onclick="toggleId('${id}', null)">
+        <div class="pr-id-hex" style="color:${color}">0x${id}</div>
+        <div class="pr-id-name" style="color:${color}">${info?.name||''}</div>
+      </div>
+      <div class="pr-bytes">${bytesHtml}</div>
+      ${opts.decoded ? `<div class="pr-decoded">—</div>` : ''}
+      ${opts.freq    ? `<div class="pr-freq"><div class="pr-freq-ms">—</div></div>` : ''}
+      ${opts.age     ? `<div class="pr-age">—</div>` : ''}
+      ${opts.count   ? `<div class="pr-count">—</div>` : ''}
+    </div>`;
+  let tr = document.getElementById('pivot-row-'+id);
+  if (!tr) {
+    tr = document.createElement('div');
+    tr.id = 'pivot-row-'+id;
+    const ids = [...document.querySelectorAll('[id^="pivot-row-"]')].map(r=>r.id.replace('pivot-row-',''));
+    ids.push(id);
+    ids.sort();
+    const sidx = ids.indexOf(id);
+    const tbody = document.getElementById('pivot-body');
+    if (sidx >= tbody.children.length) tbody.appendChild(tr);
+    else tbody.insertBefore(tr, tbody.children[sidx]);
+  }
+  tr.innerHTML = rowHtml;
+}
+
 function renderPivotRow(id, animate) {
   const info = KNOWN[id];
   const d = pivotData[id];
@@ -2057,7 +2102,9 @@ function rebuildPivotToIndex(upTo) {
   // DOM pass: render each visible ID at the pre-target state
   document.getElementById('pivot-body').innerHTML = '';
   for (const id of [...knownIds].sort()) {
-    if (filteredIds.has(id) && pivotData[id]) renderPivotRow(id, false);
+    if (!filteredIds.has(id)) continue;
+    if (pivotData[id]) renderPivotRow(id, false);
+    else if (opts.fixpos) renderPlaceholderRow(id);
   }
   // Apply the target frame with animation to show highlights
   if (end >= 0 && frameBuf[end]) {
@@ -2313,6 +2360,7 @@ function toggleOpt(btn) { lsAutosave();
   if (headerMap[key]) {
     document.getElementById(headerMap[key])?.classList.toggle('hidden', !opts[key]);
   }
+  if (key === 'fixpos' && frameBuf.length > 0) { rebuildPivotToIndex(dvrIdx); return; }
   for (const id of Object.keys(pivotData)) renderPivotRow(id, false);
   if (key === 'hlIdChg' && document.getElementById('page-analyze')?.classList.contains('active')) refreshAnalyze();
 }
