@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CaLiGRAPH v1.1.8</title>
+<title>CaLiGRAPH v1.1.9</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&display=swap');
 
@@ -683,7 +683,7 @@ body::after {
 
 <!-- HEADER -->
 <header class="app-header">
-  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.1.8</div></div>
+  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.1.9</div></div>
   <div class="mode-tabs">
     <div class="mode-tab active-monitor" id="tab-monitor" onclick="showPage('monitor')">
       <span>📡</span> Monitor
@@ -739,7 +739,7 @@ body::after {
       <!-- WS mode -->
       <div id="ws-controls">
         <div class="ws-row">
-          <input class="ws-input" id="ws-url" value="ws://192.168.178.121/ws" placeholder="ws://host:port">
+          <input class="ws-input" id="ws-url" value="192.168.178.121" placeholder="IP oder Hostname (z.B. 192.168.0.1)">
         </div>
         <div class="ws-row">
           <button class="btn green" id="btn-connect" onclick="wsToggle()" style="flex:1">CONNECT</button>
@@ -1423,9 +1423,15 @@ function wsDisconnect() {
   setConnUI('off', 'Disconnected');
 }
 
+function buildWsUrl(input) {
+  input = input.trim();
+  if (/^wss?:\/\//i.test(input)) return input;
+  return 'ws://' + input + '/ws';
+}
+
 function wsConnect() {
   if (ws) { ws.close(); ws=null; }
-  const url = document.getElementById('ws-url').value.trim();
+  const url = buildWsUrl(document.getElementById('ws-url').value);
   setConnUI('connecting', `Connecting…`);
   dbgLog(`→ Connecting to ${url}`, 'var(--accent)');
   try {
