@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CaLiGRAPH v1.2.13</title>
+<title>CaLiGRAPH v1.3.1</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&display=swap');
 
@@ -707,7 +707,7 @@ body::after {
 
 <!-- HEADER -->
 <header class="app-header">
-  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.2.13</div></div>
+  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.3.1</div></div>
   <div class="mode-tabs">
     <div class="mode-tab active-monitor" id="tab-monitor" onclick="showPage('monitor')">
       <span>📡</span> Monitor
@@ -794,6 +794,11 @@ body::after {
             </div>
           </div>
         </div>
+        <!-- CQ toggle -->
+        <label id="cq-toggle-row" style="display:flex;align-items:center;gap:5px;padding:4px 14px 2px;cursor:pointer;" title="RSSI / Latenz / Datendurchsatz messen">
+          <input type="checkbox" id="cq-enabled-cb" checked onchange="toggleCqEnabled(this.checked)" style="margin:0;cursor:pointer;accent-color:var(--green);">
+          <span style="font-family:var(--display);font-size:8px;letter-spacing:1px;color:var(--text3);white-space:nowrap;">LINK QUALITY</span>
+        </label>
         <!-- WS BDF selector -->
         <div id="ws-bdf-row">
           <span class="log-bdf-label">BDF</span>
@@ -1422,6 +1427,7 @@ let dbgRx=0, dbgParsed=0, dbgFailed=0;
 let cqPingTs=0, cqRtt=null, cqPingTimer=null, cqTputTimer=null;
 let cqRxBytes=0, cqPrevBytes=0, cqTputSamples=[];
 let cqRssi=null, cqPongPending=false, cqPingSupported=true;
+let cqEnabled=true;
 let dbgVisible=false;
 
 function dbgLog(msg, color) {
@@ -1489,7 +1495,15 @@ function updateQualityUI() {
   }
 }
 
+function toggleCqEnabled(val) {
+  cqEnabled = val;
+  if (!val) { stopQualityMonitor(); }
+  else if (wsConnected) { startQualityMonitor(); }
+  lsAutosave();
+}
+
 function startQualityMonitor() {
+  if (!cqEnabled) return;
   document.getElementById('conn-quality-section').style.display='block';
   cqRxBytes=0; cqPrevBytes=0; cqTputSamples=[];
   cqRtt=null; cqRssi=null; cqPongPending=false; cqPingSupported=true;
@@ -3437,6 +3451,11 @@ async function lsLoad() {
     if (cfg.azFilter)                  azFilter    = cfg.azFilter;
     if (cfg.playSpeed !== undefined)   playSpeed   = cfg.playSpeed;
     if (cfg.loopEnabled !== undefined) loopEnabled = cfg.loopEnabled;
+    if (cfg.cqEnabled !== undefined) {
+      cqEnabled = cfg.cqEnabled;
+      const cb = document.getElementById('cq-enabled-cb');
+      if (cb) cb.checked = cqEnabled;
+    }
 
     // Restore large data from IDB
     if (cfg.source === 'file' && cfg.logMeta?.length) {
@@ -3563,6 +3582,7 @@ function buildConfigObj() {
     wsFilteredIds: source === 'ws' ? [...filteredIds] : [],
     wsKnownIds:    source === 'ws' ? [...knownIds]    : [],
     wsDvrIdx:      source === 'ws' ? dvrIdx           : 0,
+    cqEnabled,
     wsBdfId,
     bdfs,
     // Active log: read current global state directly (no frame copies needed).
