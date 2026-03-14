@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CaLiGRAPH v1.3.1</title>
+<title>CaLiGRAPH v1.3.3</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&display=swap');
 
@@ -707,7 +707,7 @@ body::after {
 
 <!-- HEADER -->
 <header class="app-header">
-  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.3.1</div></div>
+  <div class="app-logo" onclick="window.open('https://mk4-wiki.denkdose.de/artikel/caligraph/start','_blank')" title="CaLiGRAPH Documentation"><div class="logo-name"><span class="logo-ca">Ca</span><span class="logo-li">Li</span><span class="logo-graph">GRAPH</span></div><div class="app-version"><span style="opacity:0.6;font-size:8px;">©2026 Go4IT</span> v1.3.3</div></div>
   <div class="mode-tabs">
     <div class="mode-tab active-monitor" id="tab-monitor" onclick="showPage('monitor')">
       <span>📡</span> Monitor
@@ -762,18 +762,20 @@ body::after {
       </div>
       <!-- WS mode -->
       <div id="ws-controls">
-        <div class="ws-row">
-          <input class="ws-input" id="ws-url" value="192.168.178.121" placeholder="IP oder Hostname (z.B. 192.168.0.1)" oninput="updateWsControls()">
+        <div class="ws-row" style="align-items:center;margin-bottom:6px;">
+          <div class="dot off" id="sb-dot" style="flex-shrink:0;"></div>
+          <span style="font-family:var(--display);font-size:8px;letter-spacing:1px;color:var(--text3);white-space:nowrap;">ADDRESS</span>
+          <input class="ws-input" id="ws-url" value="192.168.178.121" placeholder="IP oder Hostname" oninput="updateWsControls()" style="margin-left:6px;">
         </div>
         <div class="ws-row">
           <button class="btn green" id="btn-connect" onclick="wsToggle()" style="flex:1">CONNECT</button>
           <button class="btn red" id="btn-clear-ws" onclick="clearBuffer()" style="flex:1">CLEAR</button>
         </div>
-        <div class="conn-status">
-          <div class="dot off" id="sb-dot"></div>
-          <span id="sb-conn-text">Not connected</span>
-          <span id="sniffer-badge" style="display:none;margin-left:auto;padding:2px 6px;border-radius:3px;font-size:9px;font-family:var(--display);font-weight:600;letter-spacing:1px;"></span>
-        </div>
+        <!-- CQ toggle -->
+        <label id="cq-toggle-row" style="display:flex;align-items:center;gap:5px;padding:4px 0 2px;cursor:pointer;" title="RSSI / Latenz / Datendurchsatz messen">
+          <input type="checkbox" id="cq-enabled-cb" checked onchange="toggleCqEnabled(this.checked)" style="margin:0;cursor:pointer;accent-color:var(--green);">
+          <span style="font-family:var(--display);font-size:8px;letter-spacing:1px;color:var(--text3);white-space:nowrap;">SHOW LINK QUALITY</span>
+        </label>
         <!-- Connection Quality -->
         <div class="sb-section" id="conn-quality-section" style="padding:10px 14px;">
           <div class="sb-title" style="margin-bottom:8px;">Link Quality</div>
@@ -794,11 +796,6 @@ body::after {
             </div>
           </div>
         </div>
-        <!-- CQ toggle -->
-        <label id="cq-toggle-row" style="display:flex;align-items:center;gap:5px;padding:4px 14px 2px;cursor:pointer;" title="RSSI / Latenz / Datendurchsatz messen">
-          <input type="checkbox" id="cq-enabled-cb" checked onchange="toggleCqEnabled(this.checked)" style="margin:0;cursor:pointer;accent-color:var(--green);">
-          <span style="font-family:var(--display);font-size:8px;letter-spacing:1px;color:var(--text3);white-space:nowrap;">LINK QUALITY</span>
-        </label>
         <!-- WS BDF selector -->
         <div id="ws-bdf-row">
           <span class="log-bdf-label">BDF</span>
@@ -3090,14 +3087,6 @@ function handleIdentify(type, version, buses) {
   snifferType = type;
   dbgLog(`✓ IDENTIFY: type=${type} ver=${version} buses=${buses.join(',')}`, 'var(--green)');
 
-  // Update badge
-  const badge = document.getElementById('sniffer-badge');
-  badge.style.display = '';
-  badge.textContent = `${type.toUpperCase()} ${version}`;
-  badge.style.background = type === 'can' ? 'rgba(255,140,0,0.2)' : 'rgba(0,200,255,0.2)';
-  badge.style.color       = type === 'can' ? 'var(--orange)' : 'var(--accent)';
-  badge.style.border      = `1px solid ${type === 'can' ? 'rgba(255,140,0,0.4)' : 'rgba(0,200,255,0.4)'}`;
-
   if (type === 'can') {
     document.getElementById('can-setup').style.display = '';
     document.getElementById('lin-setup').style.display = 'none';
@@ -4494,7 +4483,6 @@ function saveAzAnnotation() {
 // ═══════════════════════════════════════════════════════════════
 function setConnUI(state, msg) {
   const dot  = document.getElementById('sb-dot');
-  const text = document.getElementById('sb-conn-text');
   const states = {
     live:       { cls:'live',   color:'' },
     connecting: { cls:'paused', color:'' },
@@ -4503,7 +4491,6 @@ function setConnUI(state, msg) {
   };
   const s = states[state] || states.off;
   dot.className  = `dot ${s.cls}`;
-  text.textContent = msg;
   updateModeBadge();
   updateWsControls();
 }
